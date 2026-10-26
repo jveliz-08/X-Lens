@@ -1,12 +1,16 @@
 # X-Lens
 
 **Small cameras. Your infrastructure.** A minimal, self-hosted JPEG snapshot
-platform: C firmware for AI-Thinker ESP32-CAM, a Rust origin server with **zero
+platform: C firmware for explicitly configured ESP32-CAM boards, a Rust origin server with **zero
 external crates**, and a plain HTML/CSS/JS dashboard.
 
 This is an experimental v0, not an audited security product. No H.264, facial
 recognition, cloud dependency, or unmeasured FPS promise. Vendor camera/Wi-Fi/TLS
 components and a standard TLS reverse proxy are necessary dependencies.
+
+**Board status:** the user’s “regular ESP32-CAM” model is not yet identified.
+AI-Thinker is only an explicit build reference, not a compatibility claim.
+See [board selection](docs/HARDWARE.md).
 
 ## Local synthetic demo
 

@@ -7,3 +7,4 @@ __pycache__/
 /firmware/sdkconfig
 /firmware/sdkconfig.old
 /firmware/dependencies.lock
+/firmware/main/board_pins.local.h

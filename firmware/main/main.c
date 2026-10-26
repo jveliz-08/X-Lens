@@ -1,4 +1,5 @@
-/* X-Lens: AI-Thinker ESP32-CAM / OV2640. No credentials in the binary. */
+/* X-Lens: explicitly selected ESP32 camera pin map. No credentials in the binary. */
+#include "board_pins.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -70,11 +71,13 @@ static void connect_wifi(void) {
 }
 static void init_camera(void) {
     camera_config_t c = {
-        .pin_pwdn=32, .pin_reset=-1, .pin_xclk=0,
-        .pin_sccb_sda=26, .pin_sccb_scl=27,
-        .pin_d7=35, .pin_d6=34, .pin_d5=39, .pin_d4=36,
-        .pin_d3=21, .pin_d2=19, .pin_d1=18, .pin_d0=5,
-        .pin_vsync=25, .pin_href=23, .pin_pclk=22,
+        .pin_pwdn=XLENS_PIN_PWDN, .pin_reset=XLENS_PIN_RESET,
+        .pin_xclk=XLENS_PIN_XCLK, .pin_sccb_sda=XLENS_PIN_SDA,
+        .pin_sccb_scl=XLENS_PIN_SCL, .pin_d7=XLENS_PIN_D7,
+        .pin_d6=XLENS_PIN_D6, .pin_d5=XLENS_PIN_D5, .pin_d4=XLENS_PIN_D4,
+        .pin_d3=XLENS_PIN_D3, .pin_d2=XLENS_PIN_D2, .pin_d1=XLENS_PIN_D1,
+        .pin_d0=XLENS_PIN_D0, .pin_vsync=XLENS_PIN_VSYNC,
+        .pin_href=XLENS_PIN_HREF, .pin_pclk=XLENS_PIN_PCLK,
         .xclk_freq_hz=20000000, .ledc_timer=LEDC_TIMER_0,
         .ledc_channel=LEDC_CHANNEL_0, .pixel_format=PIXFORMAT_JPEG,
         .frame_size=FRAMESIZE_QVGA, .jpeg_quality=16, .fb_count=1,

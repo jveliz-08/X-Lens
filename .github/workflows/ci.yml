@@ -13,13 +13,13 @@ jobs:
       - run: python3 tools/benchmark.py
   firmware:
     runs-on: ubuntu-latest
-    container: espressif/idf:v5.4.2
+    container: espressif/idf:v5.4.2@sha256:4317595a911886e04cbc6d731315d5fc2918e510b6733fc7d03381ab2d270082
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - shell: bash
         run: |
           . /opt/esp/idf/export.sh
           cd firmware
-          idf.py set-target esp32
-          idf.py build
+          idf.py -DXLENS_BOARD=AI_THINKER set-target esp32
+          idf.py -DXLENS_BOARD=AI_THINKER build
           idf.py size

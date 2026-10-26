@@ -1,25 +1,43 @@
 # ESP32-CAM firmware
 
-Target: classic AI-Thinker ESP32-CAM with OV2640, 4 MB flash and working PSRAM.
-Other boards need a reviewed pin map. Default: 320×240 JPEG, quality 16, one
-PSRAM framebuffer, capture/upload/return, at least five seconds between cycles.
-There is no claimed FPS or measured hardware heap budget.
+The intended user's “regular ESP32-CAM” board is **not yet identified**. That
+label does not uniquely specify sensor, pinout, flash or PSRAM. No compatibility
+with that board is claimed. Supply the exact board model/link or both-side
+photos before selecting a mapping or flashing.
+
+The included **AI-Thinker reference example** uses a classic ESP32 with OV2640,
+4 MB flash and working PSRAM. It is retained only as a labeled build reference.
+Default capture policy: 320×240 JPEG, quality 16, one PSRAM framebuffer,
+capture/upload/return, at least five seconds between cycles. No claimed FPS or
+measured hardware heap budget. Boards without the expected PSRAM/flash need
+additional configuration and validation beyond a pin-map change.
+
+## Explicit board selection
+
+There is no automatic/default camera board selection: an unconfigured build
+fails with an explanatory message. Use `-DXLENS_BOARD=AI_THINKER` only for the
+reference map, or `-DXLENS_BOARD=CUSTOM` after identifying another board. CUSTOM
+requires `firmware/main/board_pins.local.h` (ignored by Git) defining all the
+`XLENS_PIN_*` macros listed in `board_pins.h` from a verified schematic. Do not
+copy the reference values and rename the board. Once a real mapping is verified,
+it can be contributed as a separately named, reviewed board profile.
 
 ## Dependencies and build
 
 ESP-IDF **5.4.2**, including FreeRTOS/Wi-Fi/lwIP/mbedTLS/NVS, and Espressif
-`esp32-camera` **2.1.3** (pinned in `main/idf_component.yml`). These are necessary
+`esp32-camera` **2.1.3** (pinned in `main/idf_component.yml`). The driver’s `esp_jpeg` dependency is pinned to **1.3.2**. These are necessary
 platform dependencies, not a dependency-free firmware claim. Review/update pins
 for upstream security fixes before an actual deployment. Downloaded vendor code
 is not vendored into this repository. Vendor licenses remain their own.
 
-With an installed official ESP-IDF environment:
+Build the labeled AI-Thinker reference only, with an installed official ESP-IDF
+environment (this is not the unidentified user board):
 
 ```sh
 . "$IDF_PATH/export.sh"
 cd firmware
-idf.py set-target esp32
-idf.py build
+idf.py -DXLENS_BOARD=AI_THINKER set-target esp32
+idf.py -DXLENS_BOARD=AI_THINKER build
 idf.py size
 ```
 
