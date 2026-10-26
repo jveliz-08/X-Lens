@@ -72,3 +72,16 @@ The benchmark was rerun with 50 ms pacing to respect the new upload budget;
 reported requests/second include deliberate pacing and are not peak throughput.
 See the current `benchmark.json` for this version's measurements. Firmware CI
 continues to compile the reference mapping only, not validate physical routing.
+
+## Meta rule interpretation extension
+
+The rule proposal adapter has mocked Meta HTTP/header/schema tests, strict
+unsupported/malformed/injection-output tests and a no-retry timeout test. The
+browser suite invokes the real local subprocess in SIMULATED mode, checks that
+a proposal cannot activate a rule, cancels review, and exercises provider-error
+and unsupported-output paths. Fixtures labeled Meta in response-routing tests
+are mocked responses, not live inference. Real Meta rule interpretation quality,
+account access and billing have not been tested. The full suite now contains
+15 HTTP integration tests and 22 Python provider/policy tests, plus Rust and
+browser workflows. The Rust adapter adds only standard-library process handling;
+Python remains standard-library-only.

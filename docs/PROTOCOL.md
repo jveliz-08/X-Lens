@@ -96,3 +96,13 @@ Ambiguous storage failures stop further writes until recovery/restart. At most
 16 persisted rules and 64 in-memory events are allowed. The server validates
 schema/capability; explicit human review is enforced by the UI, not independently
 provable from an API request by an operator-token holder.
+
+## Advisory rule interpretation
+
+Viewer GET `/api/rule-provider` reports `disabled`, `mock` or `meta`. Operator-only
+POST `/api/rule-draft/{device}` accepts protocol 1 and text/plain (960 bytes max).
+The fixed optional adapter returns an explanation and validated proposal, never
+saves a rule. Unsupported requests return a null rule. Busy, disabled, provider
+or adapter failures return 502 with no automatic retry; outcome may be unknown.
+One worker can wait up to 25 seconds; remaining workers serve normal traffic.
+The device must be configured. See local workflows for consent, budgets and limits.

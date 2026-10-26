@@ -45,8 +45,8 @@ and hardware documentation as added in the following implementation commits.
 
 The dashboard now separates overview, sources, incidents and rules. Preview a
 webcam, then explicitly start authenticated snapshots; no ESP32 is needed for
-local testing. Draft a supported rule by typing or opt-in browser speech,
-review its fields and explicitly confirm with the separate operator credential.
+local testing. Ask Meta to interpret typed or opt-in browser-transcribed text into a bounded
+rule proposal (or use LOCAL TEMPLATE offline), then review its fields and explicitly confirm with the separate operator credential.
 Local rules produce bounded UI events, never execute model commands. Browser
 speech may use a vendor cloud service; typed rules work offline.
 See [local workflows and limitations](docs/LOCAL_WORKFLOWS.md).
