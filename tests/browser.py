@@ -11,7 +11,7 @@ from integration import BIN,VIEW,DEVICE,OPERATOR,send,req
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as temp:
     root=pathlib.Path(temp);cfg=root/'config';cfg.write_text(f'viewer={VIEW}\noperator={OPERATOR}\ndevice.demo={DEVICE}\n');cfg.chmod(0o600)
-    proc=subprocess.Popen([str(BIN),str(cfg),str(root/'data')],stderr=subprocess.DEVNULL)
+    proc=subprocess.Popen([str(BIN),str(cfg),str(root/'data')],stderr=subprocess.DEVNULL,env={**os.environ,'XLENS_RULE_MODE':'mock','XLENS_AI_STATE_DIR':temp})
     try:
         for _ in range(100):
             if proc.poll() is not None:raise RuntimeError('Server failed')
@@ -45,6 +45,21 @@ with tempfile.TemporaryDirectory() as temp:
                 page.locator('#token').fill(VIEW);page.locator('#connect').click();expect(page.locator('#dashboard')).to_be_visible()
             unlock();page.wait_for_function("()=>document.querySelector('.camera img')?.naturalWidth===320")
             page.locator('[data-tab=incidents]').click();expect(page.locator('.ai-source')).to_contain_text('SIMULATED AI')
+            page.locator('[data-tab=rules]').click()
+            expect(page.locator('#rule-provider')).to_contain_text('SIMULATED')
+            page.locator('#rule-intent').fill('Please flag repeated rejected frames for this camera')
+            page.locator('#proposal-key').fill(OPERATOR);page.locator('#proposal-consent').check();page.locator('#rule-ai').click()
+            expect(page.locator('#proposal-status')).to_contain_text('SIMULATED fixture')
+            assert json.loads(req('GET','/api/rules')[1])==[]
+            page.locator('#rule-review').click();expect(page.locator('#rule-confirmation')).to_be_visible()
+            page.locator('#rule-cancel').click();assert json.loads(req('GET','/api/rules')[1])==[]
+            page.route('**/api/rule-draft/*',lambda route:route.fulfill(status=502,body=''))
+            page.locator('#rule-ai').click();expect(page.locator('#proposal-status')).to_contain_text('outcome may be unknown')
+            page.unroute('**/api/rule-draft/*')
+            page.route('**/api/rule-draft/*',lambda route:route.fulfill(status=200,content_type='application/json',body=json.dumps({'source':'meta','explanation':'Per-minute rates are unsupported.','rule':None})))
+            page.locator('#rule-ai').click();expect(page.locator('#rule-status')).to_contain_text('Unsupported request')
+            assert json.loads(req('GET','/api/rules')[1])==[]
+            page.unroute('**/api/rule-draft/*')
             # Rule drafts: typed fallback, unsupported model output, cancellation, edit invalidation.
             page.locator('[data-tab=rules]').click()
             page.locator('#voice-start').click();expect(page.locator('#voice-status')).to_contain_text('Consent is required')
@@ -94,7 +109,13 @@ with tempfile.TemporaryDirectory() as temp:
             page.unroute('**/api/devices');page.locator('#refresh').click();expect(page.locator('#connection')).to_have_text('CONNECTED')
             assert page.evaluate('localStorage.length')==0 and page.evaluate('sessionStorage.length')==0
             page.screenshot(path=str(ROOT/'docs/dashboard.png'),full_page=True)
-            page.locator('[data-tab=rules]').click();page.screenshot(path=str(ROOT/'docs/rules.png'),full_page=True)
+            page.locator('[data-tab=rules]').click()
+            page.locator('#rule-intent').fill('Suggest a local replay alert for the selected camera')
+            page.locator('#rule-ai').click();expect(page.locator('#proposal-status')).to_contain_text('SIMULATED fixture')
+            page.locator('#rule-review').click();page.locator('#confirm-check').check();page.locator('#rule-save').click()
+            expect(page.locator('#rule-status')).to_contain_text('Saved meta-review')
+            assert any(r['id']=='meta-review' for r in json.loads(req('GET','/api/rules')[1]))
+            page.screenshot(path=str(ROOT/'docs/rules.png'),full_page=True)
             page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.locator('[data-tab=sources]').click();page.locator('#camera-preview').click();expect(page.locator('#upload-start')).to_be_enabled()
             page.locator('#lock').click();expect(page.locator('#login')).to_be_visible();assert page.evaluate('window.__tracks.every(t=>t.readyState==="ended")')

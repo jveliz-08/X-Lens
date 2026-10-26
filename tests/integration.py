@@ -55,6 +55,14 @@ class Platform(unittest.TestCase):
                 if not chunk: break
                 result+=chunk
             return result
+    def test_rule_proposal_boundary(self):
+        h={'X-Protocol':'1','Content-Type':'text/plain'}
+        for key in [VIEW,DEVICE]:
+            self.assertEqual(req('POST','/api/rule-draft/demo','five replays',key,h)[0],401)
+        self.assertEqual(req('POST','/api/rule-draft/demo','x'*961,OPERATOR,h)[0],400)
+        self.assertEqual(req('POST','/api/rule-draft/unknown','five replays',OPERATOR,h)[0],400)
+        self.assertEqual(req('POST','/api/rule-draft/demo','five replays',OPERATOR,h)[0],502)
+        self.assertEqual(json.loads(req('GET','/api/rules')[1]),[])
     def test_roundtrip_and_auth(self):
         self.assertEqual(req('GET','/api/devices',token=DEVICE)[0],401)
         self.assertEqual(send(1,token=VIEW),401)

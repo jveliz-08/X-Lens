@@ -1,16 +1,16 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let token = '', pollTimer, generation = 0, urls = [], devices = [], savedRules = [], draft = null;
-let refreshEpoch = 0;
+let refreshEpoch = 0, proposalEpoch = 0, proposalController;
 let tab = 'overview', stream = null, cameraEpoch = 0, captureTimer, uploadController, uploading = false;
 let speech = null, speechEpoch = 0, speechTimer;
 const inflight = new Set();
 const text = (tag, value, className) => { const e = document.createElement(tag); e.textContent = value; if(className) e.className=className; return e; };
 const message = (id, value) => { $(id).textContent=value; };
 function revoke(){ urls.forEach(URL.revokeObjectURL); urls=[]; }
-async function request(path,{key=token,method='GET',body,allowMissing=false,signal}={}) {
+async function request(path,{key=token,method='GET',body,allowMissing=false,signal,timeoutMs=6000}={}) {
  const controller=new AbortController();inflight.add(controller);
- const timeout=setTimeout(()=>controller.abort(),6000);
+ const timeout=setTimeout(()=>controller.abort(),timeoutMs);
  const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});
  if(signal?.aborted) controller.abort();
  try {
@@ -35,16 +35,16 @@ function cancelDraft(note='Draft cancelled. Saved rules are unchanged.') {
  draft=null;$('rule-confirmation').hidden=true;$('confirm-check').checked=false;$('rule-save').disabled=true;message('rule-status',note);
 }
 function lock() {
- generation++;clearTimeout(pollTimer);inflight.forEach(c=>c.abort());stopCamera();stopSpeech();cancelDraft();
+ generation++;cancelProposal();clearTimeout(pollTimer);inflight.forEach(c=>c.abort());stopCamera();stopSpeech();cancelDraft();
  token='';devices=[];savedRules=[];revoke();
- for(const id of ['token','source-key','operator-key','rule-intent','rule-json']) $(id).value='';
+ for(const id of ['token','source-key','operator-key','proposal-key','rule-intent','rule-json']) $(id).value='';
  for(const id of ['cameras','incidents','events','rules-list']) $(id).replaceChildren();
- $('speech-consent').checked=false;$('login').hidden=false;$('dashboard').hidden=true;$('lock').hidden=true;
+ $('speech-consent').checked=false;$('proposal-consent').checked=false;$('login').hidden=false;$('dashboard').hidden=true;$('lock').hidden=true;
  $('connect').disabled=false;message('connection','LOCKED');message('status','Session locked. Camera and microphone stopped.');
 }
 function showTab(next) {
  if(tab==='sources' && next!==tab) stopCamera('Camera stopped when leaving Sources.');
- if(tab==='rules' && next!==tab) stopSpeech();
+ if(tab==='rules' && next!==tab){stopSpeech();cancelProposal();}
  tab=next;document.querySelectorAll('.view').forEach(e=>e.hidden=e.id!==`view-${tab}`);
  document.querySelectorAll('[data-tab]').forEach(e=>e.setAttribute('aria-selected',String(e.dataset.tab===tab)));
 }
@@ -61,7 +61,7 @@ async function refresh() {
  clearTimeout(pollTimer);if(!token)return;const g=generation,run=++refreshEpoch;const pending=[];
  $('refresh').disabled=true;
  try {
-  const [list,signals,rules,events]=await Promise.all(['/api/devices','/api/security','/api/rules','/api/events'].map(async p=>(await request(p)).json()));
+  const [list,signals,rules,events,provider]=await Promise.all(['/api/devices','/api/security','/api/rules','/api/events','/api/rule-provider'].map(async p=>(await request(p)).json()));
   const cards=[],incidents=[];
   for(const d of list) {
    const card=text('article','', 'camera');
@@ -75,7 +75,7 @@ async function refresh() {
    }
   }
   if(g!==generation||run!==refreshEpoch){pending.forEach(URL.revokeObjectURL);return;}
-  devices=list;savedRules=rules;populate($('source-device'),list.map(d=>d.id));populate($('rule-device'),list.map(d=>d.id));
+  message('rule-provider',provider.source==='meta'?'META · LIVE CLOUD (explicit request only)':provider.source==='mock'?'SIMULATED · NO PROVIDER CALL':'AI DISABLED · LOCAL TEMPLATE available');$('rule-ai').disabled=provider.source==='disabled';devices=list;savedRules=rules;populate($('source-device'),list.map(d=>d.id));populate($('rule-device'),list.map(d=>d.id));
   revoke();urls=pending;$('cameras').replaceChildren(...cards);$('incidents').replaceChildren(...(incidents.length?incidents:[text('p','No incident review yet. Run the synthetic incident demo or an explicitly authorized Meta review. No automatic cloud call runs here.','empty')]));
   $('rules-list').replaceChildren(...renderRules(rules));
   $('events').replaceChildren(...(events.length?events.map(e=>{const row=text('article','', 'list-row');row.append(text('strong',e.rule),text('p',`${e.device} · ${e.signal}: ${e.value} · ${new Date(e.at*1000).toLocaleTimeString()} · Panel event only`));return row;}):[text('p','No local rule events. Rules evaluate once per second on the host, even with the dashboard closed.','empty')]));
@@ -143,8 +143,8 @@ function validateRule(r){
  if(typeof r.id!=='string'||typeof r.device!=='string'||typeof r.signal!=='string'||!/^[a-z0-9-]{1,24}$/.test(r.id)||!devices.some(d=>d.id===r.device)||!['replays','invalid_frames','auth_failures','stale_seconds'].includes(r.signal)||!Number.isInteger(r.threshold)||r.threshold<1||r.threshold>3600||!Number.isInteger(r.cooldown)||r.cooldown<10||r.cooldown>86400||typeof r.enabled!=='boolean'||r.action!=='ui_event')throw Error('Invalid rule. Only configured devices, bounded thresholds and panel events are supported.');return {...r};
 }
 function editorValue(){return validateRule({id:$('rule-id').value.trim(),device:$('rule-device').value,signal:$('rule-signal').value,threshold:Number($('rule-threshold').value),cooldown:Number($('rule-cooldown').value),enabled:$('rule-enabled').checked,action:'ui_event'});}
-function setEditor(r){validateRule(r);cancelDraft('Draft loaded. Edit, review, then confirm.');for(const k of ['id','device','signal','threshold','cooldown'])$(`rule-${k}`).value=r[k];$('rule-enabled').checked=r.enabled;}
-for(const e of document.querySelectorAll('#rule-editor input,#rule-editor select'))e.oninput=()=>cancelDraft('Draft changed. Review it again before confirming.');
+function setEditor(r){cancelProposal();validateRule(r);cancelDraft('Draft loaded. Edit, review, then confirm.');for(const k of ['id','device','signal','threshold','cooldown'])$(`rule-${k}`).value=r[k];$('rule-enabled').checked=r.enabled;}
+for(const e of document.querySelectorAll('#rule-editor input,#rule-editor select'))e.oninput=()=>{cancelProposal();cancelDraft('Draft changed. Review it again before confirming.');};
 $('rule-parse').onclick=()=>{try{
  let intent=$('rule-intent').value.trim().toLowerCase().replace(/[.!]$/,'');const words=['zero','one','two','three','four','five','six','seven','eight','nine','ten'];intent=intent.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/g,v=>String(words.indexOf(v)));
  const count=intent.match(/^when ([a-z0-9-]{1,24}) has (\d+) (replays|invalid frames|authentication failures),? notify me$/);
@@ -152,6 +152,7 @@ $('rule-parse').onclick=()=>{try{
  if(!match)throw Error('Unsupported phrase. Use a shown template or the structured editor. Nothing was activated.');
  const signal=stale?'stale_seconds':({'replays':'replays','invalid frames':'invalid_frames','authentication failures':'auth_failures'})[count[3]];
  setEditor({id:'local-review',device:match[1],signal,threshold:Number(match[2]),cooldown:60,enabled:true,action:'ui_event'});
+ message('rule-status','LOCAL TEMPLATE draft. Review before confirming.');
  }catch(e){cancelDraft(e.message);}};
 $('rule-import').onclick=()=>{try{const raw=$('rule-json').value;if(raw.length>1024||raw.includes('\\'))throw Error('Use a bounded JSON draft with literal field names and no escapes.');const r=JSON.parse(raw); // Schema validation rejects code/actions; no eval.
  // Reject duplicate property names rather than accepting ambiguous model output.
@@ -167,6 +168,7 @@ $('rule-save').onclick=async()=>{
  catch(e){if(g===generation)cancelDraft(`${e.message} If interrupted, refresh saved rules to check the outcome before retrying.`);}
 };
 $('voice-start').onclick=()=>{
+ cancelProposal();
  if(!$('speech-consent').checked){message('voice-status','Consent is required before browser recognition can receive audio. Typed input remains available.');return;}
  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!Recognition){message('voice-status','Speech recognition is unavailable in this browser. Type the rule instead.');return;}
  stopSpeech();cancelDraft('Dictation only fills the text field. Review is still required.');const epoch=speechEpoch,g=generation;
@@ -180,3 +182,24 @@ $('voice-start').onclick=()=>{
 $('voice-stop').onclick=()=>stopSpeech();
 window.addEventListener('pagehide',lock);
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stopCamera('Camera stopped while the page was hidden.');stopSpeech();}});
+
+function cancelProposal(){proposalEpoch++;proposalController?.abort();proposalController=null;message('proposal-status','Proposal cancelled or inactive. A provider request already sent may still complete and consume budget. No automatic retry.');}
+$('proposal-cancel').onclick=()=>{cancelProposal();cancelDraft();};
+$('rule-intent').oninput=()=>{cancelProposal();cancelDraft('Text changed. Request a new proposal or local template.');};
+$('rule-ai').onclick=async()=>{
+ cancelProposal();cancelDraft('Waiting for advisory interpretation. No rule activated.');
+ const key=$('proposal-key').value.trim(),intent=$('rule-intent').value.trim(),id=$('rule-device').value;
+ if(!$('proposal-consent').checked||!intent||intent.length>240||!/^[a-fA-F0-9]{64}$/.test(key)){message('proposal-status','Enter text and an operator token, then approve the provider request.');return;}
+ const epoch=proposalEpoch,g=generation;proposalController=new AbortController();
+ message('proposal-status','Interpreting… no rule will be activated.');
+ try{
+  const r=await(await request(`/api/rule-draft/${id}`,{key,method:'POST',body:intent,signal:proposalController.signal,timeoutMs:28000})).json();
+  if(epoch!==proposalEpoch||g!==generation)return;
+  if(!['meta','mock'].includes(r.source)||typeof r.explanation!=='string'||r.explanation.length>240)throw Error('Invalid proposal response.');
+  if(r.rule){setEditor(validateRule(r.rule));message('rule-status','AI proposal only. Check the interpretation, edit fields, review, then confirm separately.');}
+  else cancelDraft('Unsupported request. Nothing was approximated or activated.');
+  message('proposal-status',`${r.source==='meta'?'META · LIVE':'SIMULATED · NOT TEXT INTERPRETATION'}: ${r.explanation}`);
+ }catch(e){if(epoch===proposalEpoch&&g===generation){cancelDraft();message('proposal-status',`${e.message} Provider outcome may be unknown. Check budget/provider records before retrying. No rule activated.`);}}
+};
+
+$('proposal-consent').onchange=()=>{if(!$('proposal-consent').checked)cancelProposal();};

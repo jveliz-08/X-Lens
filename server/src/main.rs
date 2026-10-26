@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod drafts;
 mod rules;
 const MAX_FRAME: usize = 128 * 1024;
 const MAX_HEAD: usize = 4096;
@@ -388,6 +389,29 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
     if r.path.starts_with("/api/") && r.headers.get("x-protocol").is_some_and(|v| v != "1") {
         return status(s, 426);
     }
+    if let Some(id) = r.path.strip_prefix("/api/rule-draft/") {
+        if r.method != "POST" || !cfg.operator.as_ref().is_some_and(|key| authorized(&r, key)) {
+            denied(state)?;
+            return status(s, 401);
+        }
+        if !cfg.devices.contains_key(id)
+            || r.headers.get("x-protocol").map(String::as_str) != Some("1")
+            || r.headers.get("content-type").map(String::as_str) != Some("text/plain")
+            || r.body.is_empty()
+            || r.body.len() > 960
+        {
+            return status(s, 400);
+        }
+        return match drafts::call(id, &r.body) {
+            Ok(data) => reply(s, 200, "application/json", &data),
+            Err(_) => reply(
+                s,
+                502,
+                "text/plain",
+                b"Proposal unavailable or outcome unknown; no automatic retry. No rule activated.",
+            ),
+        };
+    }
     if let Some(id) = r.path.strip_prefix("/api/device-state/") {
         if r.method != "GET" || !cfg.devices.get(id).is_some_and(|key| authorized(&r, key)) {
             denied(state)?;
@@ -488,6 +512,14 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
                         .join(",")
                 )
                 .as_bytes(),
+            );
+        }
+        if r.path == "/api/rule-provider" {
+            return reply(
+                s,
+                200,
+                "application/json",
+                format!("{{\"source\":\"{}\"}}", drafts::mode()).as_bytes(),
             );
         }
         if r.path == "/api/capabilities" {
