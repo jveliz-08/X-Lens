@@ -18,6 +18,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 BIN=ROOT/'target/release/x-lens'
 VIEW='a'*64
 DEVICE='b'*64
+OPERATOR='c'*64
 
 def req(method,path,body=None,token=VIEW,headers=None):
     c=http.client.HTTPConnection('127.0.0.1',8080,timeout=6)
@@ -32,7 +33,7 @@ def send(seq,body=JPEG,token=DEVICE):
 class Platform(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.root=pathlib.Path(self.tmp.name)
-        cfg=self.root/'config'; cfg.write_text(f'viewer={VIEW}\ndevice.demo={DEVICE}\n'); cfg.chmod(0o600)
+        cfg=self.root/'config'; cfg.write_text(f'viewer={VIEW}\noperator={OPERATOR}\ndevice.demo={DEVICE}\n'); cfg.chmod(0o600)
         self.proc=None; self.start()
     def start(self):
         self.proc=subprocess.Popen([str(BIN),str(self.root/'config'),str(self.root/'data')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -122,6 +123,43 @@ class Platform(unittest.TestCase):
         self.assertFalse(report['actions_executed']);self.assertIn('SIMULATED',report['assessment']['incident_summary'])
         self.assertFalse((self.root/'analysis-budget.json').exists())
         self.assertLessEqual(len(body),8192);self.assertNotIn(VIEW,body.decode())
+    def rule(self, id='review', body=None, key=OPERATOR):
+        body=body or 'device=demo\nsignal=replays\nthreshold=1\ncooldown=10\nenabled=1\n'
+        return req('POST','/api/rules/'+id,body.encode(),key,{'X-Protocol':'1','Content-Type':'text/plain'})[0]
+    def test_protocol_negotiation_and_device_sequence(self):
+        self.assertEqual(req('GET','/api/capabilities',headers={'X-Protocol':'9'})[0],426)
+        self.assertEqual(req('GET','/api/device-state/demo')[0],401)
+        self.assertEqual(send(123),201)
+        self.assertEqual(json.loads(req('GET','/api/device-state/demo',token=DEVICE)[1])['next_sequence'],'124')
+        self.stop();self.start()
+        self.assertEqual(json.loads(req('GET','/api/device-state/demo',token=DEVICE)[1])['next_sequence'],'124')
+    def test_authenticated_rate_limit_and_recovery(self):
+        statuses=[send(i) for i in range(1,121)]
+        self.assertIn(429,statuses)
+        time.sleep(.1)
+        self.assertEqual(send(1000),201)
+        self.assertEqual(req('GET','/api/devices')[0],200)
+    def test_rule_capabilities_persistence_and_disable(self):
+        self.assertEqual(self.rule(key=VIEW),401);self.assertEqual(self.rule(key=DEVICE),401)
+        self.assertEqual(self.rule(),204)
+        self.assertEqual(send(1),201);self.assertEqual(send(1),409)
+        events=json.loads(req('GET','/api/events')[1]);self.assertEqual(len(events),1)
+        self.assertEqual(events[0]['action'],'ui_event')
+        self.assertEqual(len(json.loads(req('GET','/api/events')[1])),1)
+        self.stop();self.start()
+        self.assertEqual(json.loads(req('GET','/api/rules')[1])[0]['id'],'review')
+        self.assertEqual(self.rule(body='device=demo\nsignal=replays\nthreshold=1\ncooldown=10\nenabled=0\n'),204)
+        send(1);self.assertEqual(json.loads(req('GET','/api/events')[1]),[])
+    def test_rules_reject_unsafe_or_ambiguous_input(self):
+        for body in ['device=demo\nsignal=shell\nthreshold=1\ncooldown=10\nenabled=1\n',
+                     'device=demo\nsignal=replays\nthreshold=0\ncooldown=10\nenabled=1\n',
+                     'device=demo\nsignal=replays\nthreshold=1\ncooldown=10\nenabled=1\naction=execute\n',
+                     'device=demo\nsignal=replays\nthreshold=1\ncooldown=10\nenabled=1\nenabled=0\n']:
+            self.assertEqual(self.rule(body=body),400)
+        self.assertEqual(self.rule(id='../x'),400)
+        for i in range(16):self.assertEqual(self.rule(id='r'+str(i)),204)
+        self.assertEqual(self.rule(id='too-many'),422)
+        self.assertEqual(send(1),201) # Invalid rule capacity does not poison storage.
     def test_config_permissions(self):
         self.stop(); (self.root/'config').chmod(0o644)
         p=subprocess.run([str(BIN),str(self.root/'config'),str(self.root/'data')],capture_output=True,timeout=3)

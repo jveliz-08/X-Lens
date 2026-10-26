@@ -106,6 +106,7 @@ static int upload(camera_fb_t *frame, uint64_t seq) {
     if (!client) return -1;
     int status = -1;
     if (esp_http_client_set_header(client,"Authorization",auth) != ESP_OK ||
+        esp_http_client_set_header(client,"X-Protocol","1") != ESP_OK ||
         esp_http_client_set_header(client,"Content-Type","image/jpeg") != ESP_OK ||
         esp_http_client_set_header(client,"X-Sequence",number) != ESP_OK ||
         esp_http_client_open(client,(int)frame->len) != ESP_OK) goto done;

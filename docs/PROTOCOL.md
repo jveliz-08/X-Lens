@@ -1,4 +1,4 @@
-# Protocol v0
+# Protocol version 1
 
 Transport: HTTP/1.1 over verified HTTPS at the proxy. The local Rust origin uses
 HTTP only on `127.0.0.1:8080`. No custom cryptography. Each connection handles one
@@ -71,3 +71,28 @@ and are not an audit log; persistent anti-replay watermarks are separate and do
 not reset. Requests rejected before authentication/framing are not categorized
 as a per-device signal. These counters are cumulative, not rates or proof of
 malicious intent. `/api/security` is viewer-authenticated and `no-store`.
+
+## Version negotiation and local producers
+
+Clients send `X-Protocol: 1`; responses advertise version 1. Explicit unsupported
+versions on API requests return 426. Legacy upload clients without the header
+remain accepted; rule mutations require it. Authenticated upload attempts have a
+per-configured-device token bucket: burst 64, refill 20/second. Exhaustion returns
+429 with `Retry-After: 1`; 503 also carries that hint. This bounds accepted work,
+not volumetric attacks or authentication attempts; proxy limits remain necessary.
+
+`GET /api/device-state/{id}` requires that device's key and returns next_sequence
+as a decimal string, maximum frame bytes and protocol version. This enables a
+browser producer to resume without resetting replay state. It does not reserve a
+sequence; simultaneous producers must use separate identities.
+
+Viewer-authenticated GET endpoints `/api/capabilities`, `/api/rules` and
+`/api/events` expose bounded local state. `POST /api/rules/{id}` requires a distinct
+optional `operator` config token, protocol 1 and `Content-Type: text/plain`.
+Its body is at most 512 bytes with exactly five unique `key=value` lines:
+`device`, `signal`, `threshold`, `cooldown`, `enabled` (0 or 1). See local workflows
+for enums/bounds. Save succeeds with 204; invalid input 400; full rule table 422.
+Ambiguous storage failures stop further writes until recovery/restart. At most
+16 persisted rules and 64 in-memory events are allowed. The server validates
+schema/capability; explicit human review is enforced by the UI, not independently
+provable from an API request by an operator-token holder.

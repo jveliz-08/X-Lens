@@ -7,7 +7,7 @@ import urllib.request
 # Original test card; regenerate with the optional maintainer tool make_fixture.py.
 JPEG = (pathlib.Path(__file__).resolve().parents[1] / 'tests/fixtures/synthetic.jpg').read_bytes()
 def upload(url, key, seq, jpeg=JPEG):
-    req = urllib.request.Request(url, jpeg, {'Authorization': f'Bearer {key}', 'Content-Type':'image/jpeg', 'X-Sequence':str(seq)}, method='POST')
+    req = urllib.request.Request(url, jpeg, {'Authorization': f'Bearer {key}', 'Content-Type':'image/jpeg', 'X-Sequence':str(seq), 'X-Protocol':'1'}, method='POST')
     # URL fixed to localhost in CLI. Never carry credentials through redirects.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs): return None

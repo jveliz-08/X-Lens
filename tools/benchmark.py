@@ -23,6 +23,7 @@ def main():
             frame=JPEG[:-2]+b'\xff\xfe'+(60002).to_bytes(2,'big')+b'x'*60000+JPEG[-2:]
             durations=[]; started=time.monotonic()
             for seq in range(1,201):
+                time.sleep(.05) # Respect the origin's sustained upload budget.
                 t=time.monotonic(); status=send(seq,frame); durations.append((time.monotonic()-t)*1000)
                 if status!=201: raise RuntimeError(status)
             elapsed=time.monotonic()-started

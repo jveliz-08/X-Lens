@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod rules;
 const MAX_FRAME: usize = 128 * 1024;
 const MAX_HEAD: usize = 4096;
 const RETAIN: usize = 32;
@@ -20,10 +21,14 @@ const HTML: &[u8] = include_bytes!("../../web/index.html");
 const JS: &[u8] = include_bytes!("../../web/app.js");
 const CSS: &[u8] = include_bytes!("../../web/style.css");
 struct Config {
+    operator: Option<String>,
     viewer: String,
     devices: BTreeMap<String, String>,
 }
 struct State {
+    engine: rules::Engine,
+    last_seen: BTreeMap<String, Instant>,
+    buckets: BTreeMap<String, (Instant, f64)>,
     started: Instant,
     auth_failures: u64,
     stats: BTreeMap<String, [u64; 3]>,
@@ -62,6 +67,7 @@ fn config(path: &Path) -> io::Result<Config> {
         return Err(invalid());
     }
     let mut viewer = String::new();
+    let mut operator = None;
     let mut devices = BTreeMap::new();
     for line in text
         .lines()
@@ -73,6 +79,8 @@ fn config(path: &Path) -> io::Result<Config> {
         }
         if key == "viewer" && viewer.is_empty() {
             viewer = value.into();
+        } else if key == "operator" && operator.is_none() {
+            operator = Some(value.to_owned());
         } else if let Some(id) = key.strip_prefix("device.") {
             if !valid_id(id) || devices.insert(id.into(), value.into()).is_some() {
                 return Err(invalid());
@@ -83,6 +91,9 @@ fn config(path: &Path) -> io::Result<Config> {
     }
     let mut all = devices.values().collect::<Vec<_>>();
     all.push(&viewer);
+    if let Some(key) = &operator {
+        all.push(key);
+    }
     all.sort();
     if !token(&viewer)
         || devices.is_empty()
@@ -91,7 +102,11 @@ fn config(path: &Path) -> io::Result<Config> {
     {
         return Err(invalid());
     }
-    Ok(Config { viewer, devices })
+    Ok(Config {
+        viewer,
+        devices,
+        operator,
+    })
 }
 fn private_directory(path: &Path) -> io::Result<()> {
     #[cfg(unix)]
@@ -176,6 +191,17 @@ impl State {
             high.insert(id.clone(), seq);
         }
         Ok(Self {
+            engine: rules::Engine::open(&root, cfg)?,
+            last_seen: cfg
+                .devices
+                .keys()
+                .map(|id| (id.clone(), Instant::now()))
+                .collect(),
+            buckets: cfg
+                .devices
+                .keys()
+                .map(|id| (id.clone(), (Instant::now(), 64.0)))
+                .collect(),
             high,
             root,
             writable: true,
@@ -211,8 +237,24 @@ impl State {
             self.writable = false;
             return Err(e);
         }
+        self.last_seen.insert(id.into(), Instant::now());
         self.event(id, 0);
         Ok(true)
+    }
+    fn admit(&mut self, id: &str) -> bool {
+        let (at, tokens) = self.buckets.get_mut(id).unwrap();
+        *tokens = (*tokens + at.elapsed().as_secs_f64() * 20.0).min(64.0);
+        *at = Instant::now();
+        if *tokens < 1.0 {
+            false
+        } else {
+            *tokens -= 1.0;
+            true
+        }
+    }
+    fn evaluate(&mut self) {
+        self.engine
+            .evaluate(&self.stats, self.auth_failures, &self.last_seen);
     }
     fn event(&mut self, id: &str, index: usize) {
         if let Some(counts) = self.stats.get_mut(id) {
@@ -321,8 +363,13 @@ fn reply_with_sequence(
     let sequence_header = sequence
         .map(|n| format!("X-Sequence: {n}\r\n"))
         .unwrap_or_default();
+    let retry_header = if matches!(code, 429 | 503) {
+        "Retry-After: 1\r\n"
+    } else {
+        ""
+    };
     s.set_write_timeout(Some(Duration::from_secs(3)))?;
-    write!(s, "HTTP/1.1 {code} {}\r\nContent-Length: {}\r\nContent-Type: {kind}\r\n{sequence_header}Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\r\nConnection: close\r\n\r\n", if code < 400 { "OK" } else { "Error" }, body.len())?;
+    write!(s, "HTTP/1.1 {code} {}\r\nContent-Length: {}\r\nX-Protocol: 1\r\n{retry_header}Content-Type: {kind}\r\n{sequence_header}Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src blob:; media-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\r\nConnection: close\r\n\r\n", if code < 400 { "OK" } else { "Error" }, body.len())?;
     s.write_all(body)
 }
 fn denied(state: &Mutex<State>) -> io::Result<()> {
@@ -338,6 +385,60 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
         Err(_) => return reply(s, 400, "text/plain", b"Invalid request"),
     };
     let status = |s: &mut TcpStream, code| reply(s, code, "text/plain", b"");
+    if r.path.starts_with("/api/") && r.headers.get("x-protocol").is_some_and(|v| v != "1") {
+        return status(s, 426);
+    }
+    if let Some(id) = r.path.strip_prefix("/api/device-state/") {
+        if r.method != "GET" || !cfg.devices.get(id).is_some_and(|key| authorized(&r, key)) {
+            denied(state)?;
+            return status(s, 401);
+        }
+        let state = state
+            .lock()
+            .map_err(|_| io::Error::other("state unavailable"))?;
+        let Some(next) = state.high[id].checked_add(1) else {
+            return status(s, 503);
+        };
+        return reply(
+            s,
+            200,
+            "application/json",
+            format!(
+                "{{\"next_sequence\":\"{next}\",\"protocol\":1,\"max_frame_bytes\":{MAX_FRAME}}}"
+            )
+            .as_bytes(),
+        );
+    }
+    if r.method == "POST" && r.path.starts_with("/api/rules/") {
+        if !cfg.operator.as_ref().is_some_and(|key| authorized(&r, key)) {
+            denied(state)?;
+            return status(s, 401);
+        }
+        if r.headers.get("x-protocol").map(String::as_str) != Some("1")
+            || r.headers.get("content-type").map(String::as_str) != Some("text/plain")
+        {
+            return status(s, 400);
+        }
+        let rule = match rules::Rule::parse(&r.path[11..], &r.body, cfg) {
+            Ok(r) => r,
+            Err(_) => return status(s, 400),
+        };
+        let mut st = state
+            .lock()
+            .map_err(|_| io::Error::other("state unavailable"))?;
+        if !st.writable {
+            return status(s, 503);
+        }
+        if !st.engine.rules.contains_key(&rule.id) && st.engine.rules.len() >= 16 {
+            return status(s, 422);
+        }
+        let root = st.root.clone();
+        if st.engine.put(&root, rule).is_err() {
+            st.writable = false;
+            return status(s, 500);
+        }
+        return status(s, 204);
+    }
     if r.method == "GET" {
         match r.path.as_str() {
             "/" => return reply(s, 200, "text/html; charset=utf-8", HTML),
@@ -349,9 +450,49 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
             denied(state)?;
             return status(s, 401);
         }
-        let state = state
+        let mut state = state
             .lock()
             .map_err(|_| io::Error::other("state unavailable"))?;
+        if r.path == "/api/rules" {
+            return reply(
+                s,
+                200,
+                "application/json",
+                format!(
+                    "[{}]",
+                    state
+                        .engine
+                        .rules
+                        .values()
+                        .map(|r| r.json())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+                .as_bytes(),
+            );
+        }
+        if r.path == "/api/events" {
+            state.evaluate();
+            return reply(
+                s,
+                200,
+                "application/json",
+                format!(
+                    "[{}]",
+                    state
+                        .engine
+                        .events
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+                .as_bytes(),
+            );
+        }
+        if r.path == "/api/capabilities" {
+            return reply(s,200,"application/json",br#"{"protocol":1,"max_frame_bytes":131072,"upload_rate":20,"burst":64,"max_rules":16,"rule_action":"ui_event"}"#);
+        }
         if r.path == "/api/security" {
             let rows = state
                 .stats
@@ -425,6 +566,13 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
             denied(state)?;
             return status(s, 401);
         }
+        if !state
+            .lock()
+            .map_err(|_| io::Error::other("state unavailable"))?
+            .admit(id)
+        {
+            return status(s, 429);
+        }
         if r.headers.get("content-type").map(String::as_str) != Some("image/jpeg")
             || r.body.len() < 4
             || !r.body.starts_with(&[0xff, 0xd8])
@@ -461,6 +609,16 @@ fn main() -> io::Result<()> {
     let cfg = Arc::new(config(Path::new(&args[1]))?);
     let state = Arc::new(Mutex::new(State::open(args[2].clone().into(), &cfg)?));
     let listener = TcpListener::bind("127.0.0.1:8080")?;
+    {
+        let state = Arc::clone(&state);
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(1));
+            if let Ok(mut s) = state.lock() {
+                s.evaluate();
+            }
+        });
+    }
+
     let (tx, rx) = mpsc::sync_channel::<TcpStream>(8);
     let rx = Arc::new(Mutex::new(rx));
     for _ in 0..WORKERS {
@@ -499,6 +657,7 @@ mod tests {
                 .as_nanos()
         ));
         let cfg = Config {
+            operator: None,
             viewer: "a".repeat(64),
             devices: BTreeMap::from([("demo".into(), "b".repeat(64))]),
         };
