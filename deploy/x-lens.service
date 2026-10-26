@@ -1,0 +1,29 @@
+[Unit]
+Description=X-Lens snapshot receiver
+After=network.target
+
+[Service]
+Type=simple
+User=xlens
+Group=xlens
+ExecStart=/opt/x-lens/x-lens /etc/x-lens/config.secret /var/lib/x-lens
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=x-lens
+StateDirectoryMode=0700
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=64M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target

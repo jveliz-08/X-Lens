@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: rustup default stable && rustup component add rustfmt clippy
+      - run: cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo build --release
+      - run: python3 tests/integration.py && python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - run: python3 tools/benchmark.py
+  firmware:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.4.2
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - shell: bash
+        run: |
+          . /opt/esp/idf/export.sh
+          cd firmware
+          idf.py set-target esp32
+          idf.py build

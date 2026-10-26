@@ -1,0 +1,17 @@
+# Replace this reserved example hostname with your own before running Caddy.
+# Caddy is a REQUIRED standard TLS boundary for non-loopback access.
+# Keep Caddy and X-Lens on the same host/network namespace.
+camera.example.com {
+    request_body {
+        max_size 128KB
+    }
+    reverse_proxy 127.0.0.1:8080 {
+        transport http {
+            dial_timeout 2s
+            response_header_timeout 5s
+        }
+    }
+    header Strict-Transport-Security "max-age=31536000"
+    # Access logging deliberately omitted: snapshots, tokens and query strings
+    # must not enter logs. Never enable HTTP-client debug credential logging.
+}

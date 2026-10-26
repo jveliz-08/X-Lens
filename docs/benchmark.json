@@ -1,0 +1,16 @@
+{
+  "frames": 200,
+  "jpeg_bytes": 60288,
+  "elapsed_seconds": 0.281,
+  "requests_per_second": 713.01,
+  "latency_median_ms": 0.943,
+  "latency_p95_ms": 3.663,
+  "binary_bytes": 395888,
+  "retained_frames": 32,
+  "retained_jpeg_bytes": 1929216,
+  "process_memory": {
+    "VmHWM": "1680 kB",
+    "VmRSS": "1680 kB"
+  },
+  "scope": "single client, loopback HTTP, fsync enabled, synthetic JPEG; not TLS/Wi-Fi/ESP32 throughput"
+}

@@ -89,6 +89,25 @@ fn config(path: &Path) -> io::Result<Config> {
     }
     Ok(Config { viewer, devices })
 }
+fn private_directory(path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+        let mut builder = fs::DirBuilder::new();
+        builder.recursive(true).mode(0o700).create(path)?;
+        let meta = fs::symlink_metadata(path)?;
+        if !meta.is_dir() || meta.permissions().mode() & 0o077 != 0 {
+            return Err(io::Error::other(
+                "data directory must be private (mode 700), not a symlink",
+            ));
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        fs::create_dir_all(path)?;
+    }
+    Ok(())
+}
 fn files(dir: &Path) -> io::Result<Vec<u64>> {
     let mut seqs = Vec::new();
     for entry in fs::read_dir(dir)? {
@@ -110,11 +129,14 @@ fn prune(dir: &Path, keep: usize) -> io::Result<()> {
 }
 fn atomic(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
     let tmp = dir.join("pending");
-    let mut f = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&tmp)?;
+    let mut opts = OpenOptions::new();
+    opts.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&tmp)?;
     f.write_all(bytes)?;
     f.sync_all()?;
     fs::rename(tmp, dir.join(name))?;
@@ -122,11 +144,11 @@ fn atomic(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
 }
 impl State {
     fn open(root: PathBuf, cfg: &Config) -> io::Result<Self> {
-        fs::create_dir_all(&root)?;
+        private_directory(&root)?;
         let mut high = BTreeMap::new();
         for id in cfg.devices.keys() {
             let dir = root.join(id);
-            fs::create_dir_all(&dir)?;
+            private_directory(&dir)?;
             let watermark = dir.join("sequence");
             let seq = match fs::read_to_string(&watermark) {
                 Ok(v) => v.parse().map_err(|_| invalid())?,
