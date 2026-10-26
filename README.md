@@ -1,6 +1,6 @@
 # X-Lens
 
-**Small cameras. Your infrastructure.** A minimal, self-hosted JPEG snapshot
+**Tiny cameras. Intelligent oversight.** A minimal, self-hosted AI incident and JPEG snapshot
 platform: C firmware for explicitly configured ESP32-CAM boards, a Rust origin server with **zero
 external crates**, and a plain HTML/CSS/JS dashboard.
 
@@ -8,11 +8,12 @@ This is an experimental v0, not an audited security product. No H.264, facial
 recognition, cloud dependency, or unmeasured FPS promise. Vendor camera/Wi-Fi/TLS
 components and a standard TLS reverse proxy are necessary dependencies.
 
-**Board status:** the user’s “regular ESP32-CAM” model is not yet identified.
-AI-Thinker is only an explicit build reference, not a compatibility claim.
+**Target hardware:** ESP32-CAM with an **ESP-32S module and OV3660 sensor**;
+manufacturer unknown. Internal camera routing remains unverified. AI-Thinker
+is only a named reference pin map, not the target board’s identity.
 See [board selection](docs/HARDWARE.md).
 
-## Local synthetic demo
+## Local synthetic AI incident demo
 
 Requires Rust stable and Python 3. No Python packages needed.
 
@@ -22,12 +23,15 @@ python3 tools/setup_demo.py
 # Terminal 1
 ./target/release/x-lens runtime/config.secret runtime/frames
 # Terminal 2
-python3 tools/simulate.py --count 3
+python3 tools/demo_incident.py
 ```
 
 Open http://127.0.0.1:8080 and enter the `viewer` value from
 `runtime/config.secret`. Tokens stay in tab memory. Lock the session when done.
-The simulator sends an original synthetic test-pattern JPEG, not camera footage.
+The demo uploads an original synthetic test-pattern JPEG, records five replay
+rejections, and passes a clearly labeled **SIMULATED AI** response through the
+real validation/report pipeline. The dashboard shows the correlated incident,
+local policy and proposed human review. It never calls Meta or accesses a camera.
 Do not put secrets in screenshots, shell history, URLs, or Git.
 
 The server binds only to loopback. HTTPS at a trusted local reverse proxy is
@@ -69,6 +73,7 @@ adapter remains optional; it is not labeled as a Meta integration.
 ```sh
 python3 tools/analyze.py --mode image       # dry-run: no external call
 python3 tools/analyze.py --mode security    # local policy and request preview
+python3 tools/analyze.py --mode incident    # image + security evidence in one request
 ```
 
 The model can suggest a human review of authentication failures, repeated
@@ -83,10 +88,11 @@ remain authoritative; every consequential response requires human review. See
 | JPEG / headers | 128 KiB / 4 KiB maximum |
 | Devices / retention | 16 devices / 32 snapshots each |
 | Camera | One JPEG framebuffer; one HTTPS upload at a time |
-| AI requests | Manual, one at a time, bounded input/output, no automatic retries |
+| AI requests | One correlated image + telemetry review; 10/day default budget, ≥60 s gap, no retries |
 
 ## Documentation and validation
 
+- [Hackathon demo and AI workflow](docs/DEMO.md)
 - [Setup, TLS and API integration](docs/SETUP.md)
 - [Firmware build, provisioning and hardware checklist](docs/HARDWARE.md)
 - [Protocol, limits and crash semantics](docs/PROTOCOL.md)

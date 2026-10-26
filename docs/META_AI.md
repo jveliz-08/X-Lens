@@ -2,6 +2,12 @@
 
 ## What is implemented
 
+**Incident mode is the core workflow:** one bounded model call jointly reviews
+the latest JPEG and sanitized device telemetry, producing visual observations,
+security advice and a correlated incident summary. A separate deterministic
+policy gate supplies evidence, and a bounded local report appears in the
+dashboard. Nothing in the review automatically changes device access.
+
 `tools/meta_provider.py` implements Meta Model API's documented HTTPS Chat
 Completions wire format at `https://api.meta.ai/v1/chat/completions`. It uses the
 standard-library HTTP/TLS adapter, no SDK. Image mode sends inline JPEG bytes;
@@ -27,16 +33,19 @@ Official sources checked 2026-10-26:
 ```sh
 python3 tools/analyze.py --mode image --device demo
 python3 tools/analyze.py --mode security
+python3 tools/analyze.py --mode incident
+python3 tools/demo_incident.py  # complete synthetic, clearly labeled simulation
 ```
 
-Both are dry-runs. The first reports bounded JPEG/request sizes; the second also
+The analysis commands are dry-runs. The first reports bounded JPEG/request sizes; the second also
 prints a deterministic local signal review without an AI call. For a real call,
 authorized operators supply a mode-600 API key file and a verified supported
 model ID, for example:
 
 ```sh
 export XLENS_META_KEY_FILE=/private/path/meta.secret
-python3 tools/analyze.py --mode security --model YOUR_VERIFIED_MODEL_ID --send
+python3 tools/analyze.py --mode incident --device demo --model YOUR_VERIFIED_MODEL_ID \
+  --report-dir runtime/frames --send
 ```
 
 `--mode image --send` sends the latest JPEG to Meta and changes the privacy
@@ -87,3 +96,26 @@ application boundary, not model accuracy or adversarial robustness. No real
 Meta account, endpoint response or model behavior has been validated. The
 remaining integration step is confirmation of the user's exact Meta API/model
 and a separately authorized synthetic live test.
+
+## Cost and report bounds
+
+Inference is manual and combines image plus telemetry into **one** request,
+never a per-frame AI loop. Default maximum: 10 requests per UTC day and at least
+60 seconds between attempts. Operator flags `--daily-budget` (1..100) and
+`--cooldown` (60..86400 seconds) make the limit explicit. A private ledger reserves
+a slot before sending; timeout/unknown outcomes still consume that slot. The
+process lock spans budget reservation and provider I/O. Corrupt ledgers or a
+backward clock fail closed. Use one config directory per installation; deleting
+or splitting ledgers defeats the operator-side budget and is not supported.
+
+`--report-dir` writes one atomically replaced, mode-600 report per configured
+device, at most 8 KiB each. The viewer-authenticated `/api/review/{id}` endpoint
+serves it to the dashboard. Reports show `mock` versus `meta`, review time, an
+untrusted incident summary and deterministic policy. The model is not run by a
+browser request; no inference/API keys are exposed through the dashboard.
+
+Image and counters are sampled sequentially and counters cover the process
+lifetime; this is contextual correlation, not a synchronized event timeline or
+proof of causality. A report can be older than the latest displayed snapshot.
+The dashboard states that limitation. Synthetic demo mode uses the exact output
+validator and report pipeline, but cannot establish real model quality.

@@ -1,26 +1,34 @@
 # ESP32-CAM firmware
 
-The intended user's “regular ESP32-CAM” board is **not yet identified**. That
-label does not uniquely specify sensor, pinout, flash or PSRAM. No compatibility
-with that board is claimed. Supply the exact board model/link or both-side
-photos before selecting a mapping or flashing.
+Target: **ESP32-CAM with ESP-32S module and OV3660 camera sensor**. Manufacturer
+is unknown; it is not identified as an AI-Thinker product. Board/sensor markings
+were inspected, but photographs do not establish internal camera routing,
+PSRAM health or flash capacity. No user photograph is stored in this repository.
 
-The included **AI-Thinker reference example** uses a classic ESP32 with OV2640,
-4 MB flash and working PSRAM. It is retained only as a labeled build reference.
-Default capture policy: 320×240 JPEG, quality 16, one PSRAM framebuffer,
-capture/upload/return, at least five seconds between cycles. No claimed FPS or
-measured hardware heap budget. Boards without the expected PSRAM/flash need
-additional configuration and validation beyond a pin-map change.
+Espressif's pinned camera driver supports OV3660. Runtime initialization reads
+and logs the detected sensor PID and fails closed if it does not match the
+selected expectation (OV3660 by default). JPEG defaults remain 320×240, quality
+16, one PSRAM framebuffer, capture/upload/return, at least five seconds between
+cycles. No FPS or runtime hardware heap measurement is claimed.
+
+The included **AI-Thinker reference pin map** is only a labeled wiring example;
+it is not silently assumed to match this target. Its usual OV2640 sensor is not
+the user's OV3660. This build's 4 MB flash/PSRAM settings must also be checked
+against the physical target. A verified schematic or actual authorized sensor
+initialization/capture test is needed to establish compatibility.
 
 ## Explicit board selection
 
 There is no automatic/default camera board selection: an unconfigured build
 fails with an explanatory message. Use `-DXLENS_BOARD=AI_THINKER` only for the
-reference map, or `-DXLENS_BOARD=CUSTOM` after identifying another board. CUSTOM
+reference map, or `-DXLENS_BOARD=CUSTOM` after verifying the target board routing. CUSTOM
 requires `firmware/main/board_pins.local.h` (ignored by Git) defining all the
 `XLENS_PIN_*` macros listed in `board_pins.h` from a verified schematic. Do not
 copy the reference values and rename the board. Once a real mapping is verified,
 it can be contributed as a separately named, reviewed board profile.
+Sensor expectation is separate from pin mapping: default `-DXLENS_SENSOR=OV3660`;
+`-DXLENS_SENSOR=OV2640` is available only for an explicitly chosen reference
+sensor. Do not relabel a pin map to make it appear verified.
 
 ## Dependencies and build
 
@@ -31,7 +39,7 @@ for upstream security fixes before an actual deployment. Downloaded vendor code
 is not vendored into this repository. Vendor licenses remain their own.
 
 Build the labeled AI-Thinker reference only, with an installed official ESP-IDF
-environment (this is not the unidentified user board):
+environment (this validates compilation, not the physical target routing):
 
 ```sh
 . "$IDF_PATH/export.sh"
@@ -45,7 +53,7 @@ Alternatively use `espressif/idf:v5.4.2` for a build-only container. The local
 development environment could not unpack that image (Docker storage exhausted);
 A reference firmware build passed in [GitHub Actions](https://github.com/jveliz-08/X-Lens/actions/runs/40372042440).
 Consult the current Actions run for the selected revision. This does not prove
-compatibility with the unidentified user board. No board was flashed.
+compatibility with the ESP-32S/OV3660 target wiring. No board was flashed.
 
 ## Provisioning (instructions only; no flashing performed)
 

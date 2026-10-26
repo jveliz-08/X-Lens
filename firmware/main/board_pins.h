@@ -1,7 +1,7 @@
 /* Explicit board selection. Never infer a pin map from the label "regular". */
 #pragma once
 #if defined(XLENS_AI_THINKER_REFERENCE)
-/* Reference example only; not a claim about the user's unidentified board. */
+/* Reference example only; not a claim about the ESP32-CAM / ESP-32S / OV3660 target board. */
 #define XLENS_PIN_PWDN 32
 #define XLENS_PIN_RESET -1
 #define XLENS_PIN_XCLK 0

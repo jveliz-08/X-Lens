@@ -15,6 +15,7 @@ with tempfile.TemporaryDirectory() as temp:
             try: req('GET','/'); break
             except OSError: time.sleep(.02)
         assert send(1)==201
+        subprocess.run(['python3',str(pathlib.Path(__file__).resolve().parents[1]/'tools/analyze.py'),'--config',str(cfg),'--mode','incident','--mock','--report-dir',str(root/'data')],check=True,stdout=subprocess.DEVNULL)
         with sync_playwright() as p:
             browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
             page=browser.new_page(viewport={'width':1280,'height':1000})
@@ -25,6 +26,8 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('.camera img').wait_for()
             page.wait_for_function("document.querySelector('.camera img').naturalWidth === 320")
             assert page.locator('.camera h3').inner_text()=='demo'
+            page.wait_for_function("document.querySelector('.ai-source')?.textContent.includes('SIMULATED AI')")
+            assert 'No actions executed' in page.locator('.review').inner_text()
             assert page.evaluate('localStorage.length')==0
             assert page.evaluate('sessionStorage.length')==0
             page.screenshot(path=str(pathlib.Path(__file__).resolve().parents[1]/'docs/dashboard.png'),full_page=True)

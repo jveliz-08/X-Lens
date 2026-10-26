@@ -52,6 +52,13 @@ class MetaSafety(unittest.TestCase):
         self.assertEqual(response_value(envelope(v),'image'),v) # Text remains data, never executed.
         v['person_identity']='Someone'
         with self.assertRaises(ValueError): response_value(envelope(v),'image')
+    def test_incident_correlates_visual_and_numeric_evidence(self):
+        clean=telemetry(sample());v=json.loads(request_body('incident','muse-spark-1.3',jpeg=JPEG,clean=clean))
+        self.assertEqual(len(v['messages'][1]['content']),3)
+        out={'visual':{'objects':['other'],'summary':'Synthetic signal','uncertain':True},'security':advice(),'incident_summary':'Review the observations together.'}
+        self.assertEqual(response_value(envelope(out),'incident'),out)
+        out['execute']='quarantine'
+        with self.assertRaises(ValueError): response_value(envelope(out),'incident')
     def test_bounds_and_types(self):
         raw=sample();raw['auth_failures']=True
         with self.assertRaises(ValueError): telemetry(raw)

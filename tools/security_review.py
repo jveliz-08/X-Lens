@@ -55,3 +55,10 @@ def policy(clean,model=None):
             'model_advice':validate_security(model) if model is not None else None,
             'human_approval_required':True,'automatic_action':False,
             'note':'Counters are cumulative since process start; signals are not proof of compromise. Review before any step-up or quarantine.'}
+
+def validate_incident(value):
+    if not isinstance(value,dict) or set(value)!={'visual','security','incident_summary'}: raise ValueError('Unexpected incident output')
+    validate_image(value['visual']);validate_security(value['security'])
+    summary=value['incident_summary']
+    if not isinstance(summary,str) or not 1<=len(summary)<=500 or any(ord(c)<32 for c in summary): raise ValueError('Invalid incident summary')
+    return value

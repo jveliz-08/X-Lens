@@ -108,6 +108,17 @@ class Platform(unittest.TestCase):
         self.stop(); self.start()
         self.assertEqual(json.loads(req('GET','/api/security')[1])['auth_failures'],0)
         self.assertEqual(send(1),409) # Telemetry resets; security watermark does not.
+    def test_mock_incident_pipeline(self):
+        self.assertEqual(send(1),201)
+        for _ in range(5): self.assertEqual(send(1),409)
+        subprocess.run([sys.executable,str(ROOT/'tools/analyze.py'),'--config',str(self.root/'config'),'--mode','incident','--mock','--report-dir',str(self.root/'data')],check=True,capture_output=True,timeout=10)
+        self.assertEqual(req('GET','/api/review/demo',token=DEVICE)[0],401)
+        status,body,_=req('GET','/api/review/demo');self.assertEqual(status,200)
+        report=json.loads(body);self.assertEqual(report['source'],'mock')
+        self.assertEqual(report['policy']['deterministic_recommendation'],'review')
+        self.assertFalse(report['actions_executed']);self.assertIn('SIMULATED',report['assessment']['incident_summary'])
+        self.assertFalse((self.root/'analysis-budget.json').exists())
+        self.assertLessEqual(len(body),8192);self.assertNotIn(VIEW,body.decode())
     def test_config_permissions(self):
         self.stop(); (self.root/'config').chmod(0o644)
         p=subprocess.run([str(BIN),str(self.root/'config'),str(self.root/'data')],capture_output=True,timeout=3)

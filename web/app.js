@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 let token = '', timer, urls = [], generation = 0;
 function revoke() { urls.forEach(URL.revokeObjectURL); urls = []; }
 function lock() { generation++; clearTimeout(timer); token = ''; $('token').value = ''; revoke(); $('cameras').replaceChildren(); $('login').hidden = false; $('dashboard').hidden = true; $('connection').textContent = 'LOCKED'; }
-async function request(path) { const r = await fetch(path, {headers:{Authorization:`Bearer ${token}`}, cache:'no-store', signal:AbortSignal.timeout(6000)}); if (!r.ok) throw Error(r.status === 401 ? 'Access denied. Check your viewer token.' : `Request failed (${r.status}).`); return r; }
+async function request(path, allowMissing = false) { const r = await fetch(path, {headers:{Authorization:`Bearer ${token}`}, cache:'no-store', signal:AbortSignal.timeout(6000)}); if (allowMissing && r.status === 404) return null; if (!r.ok) throw Error(r.status === 401 ? 'Access denied. Check your viewer token.' : `Request failed (${r.status}).`); return r; }
 async function refresh() {
  const g = generation;
  const pending = [];
@@ -17,7 +17,19 @@ async function refresh() {
    else { const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = 'Waiting for first snapshot'; card.append(empty); }
    const name = document.createElement('h3'); name.textContent = d.id;
    const info = document.createElement('p'); info.textContent = `Sequence ${d.sequence} · ${d.retained} retained`;
-   card.append(name,info); cards.push(card);
+   card.append(name,info);
+   const reviewResponse = await request(`/api/review/${d.id}`, true);
+   const review = document.createElement('section'); review.className = 'review';
+   const badge = document.createElement('strong'); badge.className = 'ai-source';
+   if (reviewResponse) {
+    const report = await reviewResponse.json();
+    badge.textContent = report.source === 'meta' ? 'META AI · ADVISORY' : 'SIMULATED AI · NO PROVIDER CALL';
+    const summary = document.createElement('p'); summary.textContent = report.assessment?.incident_summary || 'Invalid review report';
+    const action = document.createElement('p'); action.textContent = `Local policy: ${report.policy?.deterministic_recommendation || 'unknown'} · Human approval required · No actions executed`;
+    const stamp = document.createElement('p'); stamp.className = 'muted'; stamp.textContent = `Reviewed ${new Date(report.created_unix * 1000).toLocaleString()} · This report may be older than the displayed snapshot.`;
+    review.append(badge,summary,action,stamp);
+   } else { badge.textContent = 'AI REVIEW · NOT RUN'; const help = document.createElement('p'); help.textContent = 'Run a manual incident review to correlate the image with device security signals. External inference is off by default.'; review.append(badge,help); }
+   card.append(review); cards.push(card);
   }
   if (g !== generation) { pending.forEach(URL.revokeObjectURL); return; }
   $('security-signals').textContent = `Local security signals · ${signals.auth_failures} authentication failures · ${signals.devices.reduce((n,d)=>n+d.replays,0)} replay rejections · Since server start; review signals before taking action.`;

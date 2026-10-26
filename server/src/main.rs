@@ -376,6 +376,20 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
                 format!("[{}]", rows.join(",")).as_bytes(),
             );
         }
+        if let Some(id) = r.path.strip_prefix("/api/review/") {
+            if !cfg.devices.contains_key(id) {
+                return status(s, 404);
+            }
+            let path = state.root.join(id).join("review.json");
+            match fs::metadata(&path) {
+                Ok(meta) if meta.len() <= 8192 => {
+                    return reply(s, 200, "application/json", &fs::read(path)?)
+                }
+                Ok(_) => return status(s, 500),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => return status(s, 404),
+                Err(e) => return Err(e),
+            }
+        }
         if let Some(id) = r.path.strip_prefix("/api/latest/") {
             if !cfg.devices.contains_key(id) {
                 return status(s, 404);

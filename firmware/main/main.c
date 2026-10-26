@@ -84,6 +84,13 @@ static void init_camera(void) {
         .fb_location=CAMERA_FB_IN_PSRAM, .grab_mode=CAMERA_GRAB_WHEN_EMPTY
     };
     ESP_ERROR_CHECK(esp_camera_init(&c));
+    sensor_t *sensor = esp_camera_sensor_get();
+    if (!sensor) ESP_ERROR_CHECK(ESP_ERR_NOT_FOUND);
+    ESP_LOGI(TAG, "Detected sensor PID=0x%04x; expected=0x%04x", sensor->id.PID, XLENS_EXPECTED_PID);
+    if (sensor->id.PID != XLENS_EXPECTED_PID) {
+        ESP_LOGE(TAG, "Sensor mismatch; verify hardware and selected profile before capture");
+        ESP_ERROR_CHECK(ESP_ERR_NOT_SUPPORTED);
+    }
 }
 static int upload(camera_fb_t *frame, uint64_t seq) {
     char url[224], auth[72], number[21];

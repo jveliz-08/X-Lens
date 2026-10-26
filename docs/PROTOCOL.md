@@ -8,6 +8,7 @@ headers, oversized headers, and conflicting framing are rejected.
 | Operation | Authorization | Request / result |
 |---|---|---|
 | `POST /api/frame/{id}` | Device-specific bearer | Raw JPEG, `Content-Type: image/jpeg`, exact `Content-Length`, `X-Sequence: <positive u64>`; 201 accepted, 409 stale/replay |
+| `GET /api/review/{id}` | Viewer bearer | Latest bounded AI report, with explicit mock/live source; 404 until reviewed |
 | `GET /api/security` | Viewer bearer | Bounded numeric counters since process start; no tokens, IPs, raw logs or footage |
 | `GET /api/devices` | Viewer bearer | JSON device ID, latest stored sequence, retained count |
 | `GET /api/latest/{id}` | Viewer bearer | Latest JPEG; 404 until a frame exists |
@@ -29,6 +30,8 @@ markers/type: 415; local storage failure: 500. Responses use `no-store`.
   tiny watermarks and filesystem overhead. One serialized pending file adds at
   most 128 KiB during commit. No unbounded image/log/event queue.
 - Device list and latest-image reads are bounded by configured devices/retention.
+- Local AI reports: one ≤8 KiB report per configured device (≤128 KiB total),
+  plus bounded atomic-write temporary files and one tiny operator budget ledger.
 - AI adapter: one process lock, at most 128 KiB image, 64 KiB provider response,
   15-second socket timeout and 20-second absolute provider deadline. No retries.
 
