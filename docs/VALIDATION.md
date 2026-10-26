@@ -3,7 +3,7 @@
 Local Linux x86_64 container, Rust 1.99.1, 2026-10-26. Synthetic input only.
 
 - Rust unit tests: 3 passed (including injected ambiguous storage failure); formatting and Clippy with warnings denied passed.
-- Real HTTP/process integration tests: 10 passed, covering capability separation,
+- Real HTTP/process integration tests: 14 passed, covering capability separation,
   roundtrip, persistent replay rejection, bounded retention, concurrent duplicate
   submissions, strict framing, malformed/oversized requests, slow header deadline,
   crash watermark recovery, corruption and config permissions.
@@ -53,3 +53,22 @@ correlated incident reports and locally computed evidence fingerprints. Later
 README-only clarification does not change those executable paths. The standalone
 synthetic demo command was also run end to end and produced a `mock` report with
 local `review` policy and `actions_executed: false`.
+
+## Local workflows extension
+
+2026-10-26: formatting, Clippy (warnings denied), 3 Rust tests, 14 HTTP/process
+integration tests and 18 provider/budget tests passed. Added protocol negotiation,
+authenticated rate-limit recovery, device sequence recovery, rule capability
+separation, schema rejection, capacity safety and restart persistence checks.
+Chromium fake media and stubbed recognition exercise permission rejection,
+preview without upload, authenticated snapshots, stopping late permissions,
+navigation/logout/pagehide cleanup, rule draft cancellation/edit invalidation,
+explicit save/disable, unsupported speech fallback, consent, transcription without
+activation, stale/recovered network state, mobile width and no credential storage.
+No actual camera, microphone, speech vendor or Meta service was accessed.
+Playwright 1.62.0 and Chromium are test-only dependencies; CI now includes this
+browser suite. Screenshots `dashboard.png` and `rules.png` show synthetic input.
+The benchmark was rerun with 50 ms pacing to respect the new upload budget;
+reported requests/second include deliberate pacing and are not peak throughput.
+See the current `benchmark.json` for this version's measurements. Firmware CI
+continues to compile the reference mapping only, not validate physical routing.

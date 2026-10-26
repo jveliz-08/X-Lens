@@ -41,6 +41,16 @@ The server binds only to loopback. HTTPS at a trusted local reverse proxy is
 mandatory for cameras or remote dashboard access. See the deployment, protocol,
 and hardware documentation as added in the following implementation commits.
 
+## Webcam, voice drafts and local rules
+
+The dashboard now separates overview, sources, incidents and rules. Preview a
+webcam, then explicitly start authenticated snapshots; no ESP32 is needed for
+local testing. Draft a supported rule by typing or opt-in browser speech,
+review its fields and explicitly confirm with the separate operator credential.
+Local rules produce bounded UI events, never execute model commands. Browser
+speech may use a vendor cloud service; typed rules work offline.
+See [local workflows and limitations](docs/LOCAL_WORKFLOWS.md).
+
 ## AI-assisted development
 
 This project is being developed with AI assistance, including implementation,

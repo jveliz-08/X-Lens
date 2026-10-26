@@ -66,3 +66,17 @@ code, alter secrets, suppress deterministic signals or quarantine a device.
 Prompt injection can still influence model judgments; every consequential
 response remains a human decision. Tokens use OS randomness, never generated
 text. See [Meta AI](META_AI.md) for the explicit trust boundary and tests.
+
+## Browser sources and operator rules
+
+Webcam uploads use existing device credentials and durable sequence checks.
+Preview and upload are separate explicit actions. Browser speech is optional,
+consented, and may use a vendor internet service; no audio is sent by X-Lens to
+Meta. Typed rule templates work locally. Imported model output remains untrusted.
+A separate operator token permits only bounded rule writes. Viewer/device tokens
+cannot write rules. Rules produce local UI events only; the server does not
+execute model code, rotate credentials or quarantine devices. Operator-token
+possession itself authorizes API writes; UI confirmation is not a cryptographic
+proof of human presence. Counters/events/cooldowns reset at restart, unlike rules
+and device watermarks. Per-device upload buckets reduce authenticated load but
+are not a global DoS defense; retain trusted proxy limits and local access control.
