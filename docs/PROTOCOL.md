@@ -8,6 +8,7 @@ headers, oversized headers, and conflicting framing are rejected.
 | Operation | Authorization | Request / result |
 |---|---|---|
 | `POST /api/frame/{id}` | Device-specific bearer | Raw JPEG, `Content-Type: image/jpeg`, exact `Content-Length`, `X-Sequence: <positive u64>`; 201 accepted, 409 stale/replay |
+| `GET /api/security` | Viewer bearer | Bounded numeric counters since process start; no tokens, IPs, raw logs or footage |
 | `GET /api/devices` | Viewer bearer | JSON device ID, latest stored sequence, retained count |
 | `GET /api/latest/{id}` | Viewer bearer | Latest JPEG; 404 until a frame exists |
 | `GET /`, `/app.js`, `/style.css` | Public | Static login shell; no footage or credentials |
@@ -56,3 +57,14 @@ NVS corruption never triggers automatic erasure. Reprovision with a new ID/key,
 or deliberately recover a counter above the server watermark. A device key
 holder can advance the sequence arbitrarily and deny future legitimate uploads;
 this is a credential-compromise recovery problem, not solved by counters.
+
+## Security signals
+
+Fixed per-configured-device saturating u64 counters track accepted uploads,
+authenticated replay rejections and invalid JPEG envelopes. One aggregate
+counter tracks failed bearer authentication, including viewer requests. No
+attacker-chosen IDs are inserted into telemetry maps. Counters reset on restart
+and are not an audit log; persistent anti-replay watermarks are separate and do
+not reset. Requests rejected before authentication/framing are not categorized
+as a per-device signal. These counters are cumulative, not rates or proof of
+malicious intent. `/api/security` is viewer-authenticated and `no-store`.

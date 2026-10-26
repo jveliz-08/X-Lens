@@ -40,30 +40,33 @@ Caddy configuration and systemd service were not deployed during development.
 
 ## Operator API/AI adapter
 
-`python3 tools/analyze.py --device demo` reads the latest local JPEG and reports
-request size without sending it externally. This is the default behavior.
-For an explicitly chosen trusted provider, the operator sets:
+The default adapter is Meta Model API. Both commands below are local dry-runs:
 
 ```sh
-export XLENS_PROVIDER_URL=https://your-trusted-provider.example/analyze
-export XLENS_PROVIDER_KEY_FILE=/private/path/provider.secret
-python3 tools/analyze.py --device demo --send
+python3 tools/analyze.py --device demo --mode image
+python3 tools/analyze.py --mode security
 ```
 
-The secret file contains only a provider API key, mode 600. It is read on the
-server, never exposed to cameras/dashboard. Provider URLs are operator config,
-not HTTP input; the operator must verify destination/privacy/cost. Redirects are
-rejected; system CA verification and hostname checks are enabled. Body contract:
-`{"device":"demo","jpeg_base64":"..."}`; response must be JSON <=64 KiB.
-Adapt that one adapter to a provider's official API as needed. No paid provider
-is preconfigured. Nothing starts background analyses. A process lock limits one
-analysis per config directory; use a single config directory per installation.
-No biometric identification or automated security decision is implemented.
+For actual explicitly authorized calls, see [Meta setup and limits](META_AI.md).
+This project made **no real external provider calls**. The event-specific API
+and account/model access remain to be confirmed. No background analysis runs.
 
-A timeout/invalid response is an unknown or rejected outcome: the upstream may
-have accepted/billed the call. The adapter never retries. Review provider records
-before making another call. The provider response is printed as escaped JSON;
-it is not automatically stored or shown as trusted HTML in the dashboard.
+The optional generic image contract remains available:
+
+```sh
+python3 tools/analyze.py --provider generic --device demo
+# Only after operator authorization and provider configuration:
+export XLENS_PROVIDER_URL=https://your-trusted-provider.example/analyze
+export XLENS_PROVIDER_KEY_FILE=/private/path/provider.secret
+python3 tools/analyze.py --provider generic --device demo --send
+```
+
+Generic request: `{"device":"demo","jpeg_base64":"..."}`; response: JSON <=64 KiB.
+This generic contract is not presented as a Meta API. Secrets are mode-600 files
+on the server. Redirects are rejected; system CA/hostname verification is on.
+One process lock per config directory prevents concurrent analyses. Timeout or
+invalid response is unknown/rejected, not proof the provider did no billable
+work. The adapter never retries. Outputs are escaped JSON, never HTML or code.
 
 ## Recovery and rotation
 

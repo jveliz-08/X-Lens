@@ -1,16 +1,16 @@
 {
   "frames": 200,
   "jpeg_bytes": 70635,
-  "elapsed_seconds": 0.264,
-  "requests_per_second": 756.14,
-  "latency_median_ms": 0.914,
-  "latency_p95_ms": 2.916,
-  "binary_bytes": 395872,
+  "elapsed_seconds": 0.137,
+  "requests_per_second": 1455.75,
+  "latency_median_ms": 0.645,
+  "latency_p95_ms": 0.92,
+  "binary_bytes": 407000,
   "retained_frames": 32,
   "retained_jpeg_bytes": 2260320,
   "process_memory": {
-    "VmHWM": "1680 kB",
-    "VmRSS": "1680 kB"
+    "VmHWM": "1744 kB",
+    "VmRSS": "1744 kB"
   },
   "scope": "single client, loopback HTTP, fsync enabled, synthetic JPEG; not TLS/Wi-Fi/ESP32 throughput"
 }

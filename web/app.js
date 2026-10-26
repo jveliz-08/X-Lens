@@ -9,6 +9,7 @@ async function refresh() {
  const pending = [];
  try {
   const devices = await (await request('/api/devices')).json();
+  const signals = await (await request('/api/security')).json();
   const cards = [];
   for (const d of devices) {
    const card = document.createElement('article'); card.className = 'camera';
@@ -19,6 +20,7 @@ async function refresh() {
    card.append(name,info); cards.push(card);
   }
   if (g !== generation) { pending.forEach(URL.revokeObjectURL); return; }
+  $('security-signals').textContent = `Local security signals · ${signals.auth_failures} authentication failures · ${signals.devices.reduce((n,d)=>n+d.replays,0)} replay rejections · Since server start; review signals before taking action.`;
   revoke(); urls = pending; $('cameras').replaceChildren(...cards); $('count').textContent = `(${devices.length})`; $('status').textContent = `Last checked ${new Date().toLocaleTimeString()} · Sequence indicates capture progress, not camera health.`;
   $('login').hidden = true; $('dashboard').hidden = false; $('connection').textContent = 'CONNECTED';
  } catch (e) { pending.forEach(URL.revokeObjectURL); if (g !== generation) return; $('status').textContent = e.message; $('connection').textContent = 'UNAVAILABLE'; }

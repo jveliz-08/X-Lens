@@ -81,7 +81,11 @@ class Platform(unittest.TestCase):
         self.assertEqual(send(1,b'\xff\xd8'+b'\0'*(131072-4)+b'\xff\xd9'),201)
     def test_slow_header_deadline(self):
         with socket.create_connection(('127.0.0.1',8080),timeout=6) as s:
-            start=time.monotonic(); s.sendall(b'GET / HTTP/1.1\r\n'); result=s.recv(4096)
+            start=time.monotonic(); s.sendall(b'GET / HTTP/1.1\r\n'); result=b''
+            while b'\r\n' not in result:
+                chunk=s.recv(4096)
+                if not chunk: break
+                result+=chunk
             self.assertTrue(result.startswith(b'HTTP/1.1 400')); self.assertLess(time.monotonic()-start,4)
     def test_crash_watermark_and_corruption(self):
         self.assertEqual(send(1),201); self.stop()
@@ -92,6 +96,18 @@ class Platform(unittest.TestCase):
         self.stop(); (self.root/'data/demo/sequence').write_text('broken')
         p=subprocess.run([str(BIN),str(self.root/'config'),str(self.root/'data')],capture_output=True,timeout=3)
         self.assertNotEqual(p.returncode,0)
+    def test_security_telemetry_is_bounded_and_private(self):
+        self.assertEqual(req('GET','/api/security',token=DEVICE)[0],401)
+        self.assertEqual(send(1,token=VIEW),401)
+        self.assertEqual(send(1),201); self.assertEqual(send(1),409)
+        self.assertEqual(send(2,b'bad'),415)
+        data=json.loads(req('GET','/api/security')[1])
+        self.assertEqual(data['auth_failures'],2)
+        self.assertEqual(data['devices'],[{'id':'demo','accepted':1,'replays':1,'invalid_frames':1}])
+        self.assertNotIn(DEVICE,json.dumps(data)); self.assertNotIn(VIEW,json.dumps(data))
+        self.stop(); self.start()
+        self.assertEqual(json.loads(req('GET','/api/security')[1])['auth_failures'],0)
+        self.assertEqual(send(1),409) # Telemetry resets; security watermark does not.
     def test_config_permissions(self):
         self.stop(); (self.root/'config').chmod(0o644)
         p=subprocess.run([str(BIN),str(self.root/'config'),str(self.root/'data')],capture_output=True,timeout=3)

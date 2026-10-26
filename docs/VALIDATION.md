@@ -3,11 +3,12 @@
 Local Linux x86_64 container, Rust 1.99.1, 2026-10-26. Synthetic input only.
 
 - Rust unit tests: 3 passed (including injected ambiguous storage failure); formatting and Clippy with warnings denied passed.
-- Real HTTP/process integration tests: 8 passed, covering capability separation,
+- Real HTTP/process integration tests: 9 passed, covering capability separation,
   roundtrip, persistent replay rejection, bounded retention, concurrent duplicate
   submissions, strict framing, malformed/oversized requests, slow header deadline,
   crash watermark recovery, corruption and config permissions.
-- Provider adapter unit tests: 6 passed; fake provider only, including timeout
+- Provider and Meta policy tests: 15 passed; fake providers only, including prompt-injection containment, strict schemas,
+  no model authority over deterministic policy, timeout
   without retry and oversized response. No real provider/paid calls.
 - Host benchmark: 200 sequential 70,635-byte synthetic JPEG uploads, fsync enabled.
   See `benchmark.json` for measured latency, resident memory, binary size and
@@ -19,7 +20,8 @@ Local Linux x86_64 container, Rust 1.99.1, 2026-10-26. Synthetic input only.
 - Firmware reference build: passed in GitHub Actions with ESP-IDF 5.4.2 after
   adding the missing `esp_timer` component requirement. Verified run:
   https://github.com/jveliz-08/X-Lens/actions/runs/40372042440
-  (`d6f1760`, reference AI-Thinker map only). Linker report: 1,000,410-byte image,
+  (`d6f1760`, reference AI-Thinker map only). Explicit board selection also
+  compiled in firmware job 121747529442 of run 40372748238 (`7d1c971`). Linker report: 1,000,410-byte image,
   103,834 bytes IRAM and 47,052 bytes static DRAM. These are build-time values,
   not runtime heap/TLS measurements. The user's board remains unidentified.
   Local Docker image unpack failed due to Docker storage space; CI supplied
@@ -36,3 +38,10 @@ scan had no findings (not a comprehensive secret audit). Original synthetic
 fixture/screenshot and MIT project code only. Commits use the verified GitHub
 account's public noreply address; they are **unsigned**, not cryptographically
 verified signatures. No signing keys or GitHub credentials were created.
+
+An intermediate host CI run exposed a test bug: a single TCP `recv` was assumed
+to contain an entire HTTP status line. The timeout test now assembles the line
+across segments before asserting its content. The absolute deadline assertion
+remains in place. Earlier firmware CI failures for the `esp_timer` dependency
+and ESP-IDF's early component-discovery phase were fixed in separate commits;
+those failed runs are retained in the public history, not hidden.

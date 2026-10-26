@@ -58,12 +58,24 @@ Caddy (standard TLS boundary) → 127.0.0.1:8080 Rust origin
                                   └── manual server-side API adapter (off by default)
 ```
 
-The camera never sees external AI/API keys. The adapter uses Python's standard
-library + platform TLS; it offers a small provider-neutral JSON contract, not
-an invented integration with a specific paid provider. Test it without network
-calls using `python3 tools/analyze.py`. External sending additionally requires
-`--send`, `XLENS_PROVIDER_URL` and `XLENS_PROVIDER_KEY_FILE` (mode 600). See
-[setup and deployment](docs/SETUP.md) before enabling it.
+The camera never sees external AI/API keys. The standard-library Python adapter
+supports **Meta Model API** image understanding and an advisory cybersecurity
+review of bounded numeric telemetry. The concrete Meta wire format follows
+[official documentation](https://dev.meta.ai/docs/protocols/chat-completions);
+only synthetic/mock tests have run, not real Meta calls. The user's event API,
+account entitlement and model ID still need confirmation. A generic JSON image
+adapter remains optional; it is not labeled as a Meta integration.
+
+```sh
+python3 tools/analyze.py --mode image       # dry-run: no external call
+python3 tools/analyze.py --mode security    # local policy and request preview
+```
+
+The model can suggest a human review of authentication failures, repeated
+sequences or invalid frames. It **cannot generate credentials, authenticate
+users, execute commands, or quarantine devices**. Local deterministic rules
+remain authoritative; every consequential response requires human review. See
+[Meta AI and security review](docs/META_AI.md) and [setup](docs/SETUP.md).
 
 | Component | Deliberate budget |
 |---|---|

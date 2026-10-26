@@ -24,6 +24,9 @@ struct Config {
     devices: BTreeMap<String, String>,
 }
 struct State {
+    started: Instant,
+    auth_failures: u64,
+    stats: BTreeMap<String, [u64; 3]>,
     writable: bool,
     high: BTreeMap<String, u64>,
     root: PathBuf,
@@ -176,6 +179,9 @@ impl State {
             high,
             root,
             writable: true,
+            started: Instant::now(),
+            auth_failures: 0,
+            stats: cfg.devices.keys().map(|id| (id.clone(), [0; 3])).collect(),
         })
     }
     fn save(&mut self, id: &str, seq: u64, body: &[u8]) -> io::Result<bool> {
@@ -189,6 +195,7 @@ impl State {
             return Err(io::Error::other("storage requires operator recovery"));
         }
         if seq <= self.high[id] {
+            self.event(id, 1);
             return Ok(false);
         }
         let dir = self.root.join(id);
@@ -204,7 +211,13 @@ impl State {
             self.writable = false;
             return Err(e);
         }
+        self.event(id, 0);
         Ok(true)
+    }
+    fn event(&mut self, id: &str, index: usize) {
+        if let Some(counts) = self.stats.get_mut(id) {
+            counts[index] = counts[index].saturating_add(1);
+        }
     }
 }
 fn remaining(s: &TcpStream, start: Instant) -> io::Result<()> {
@@ -300,6 +313,13 @@ fn reply(s: &mut TcpStream, code: u16, kind: &str, body: &[u8]) -> io::Result<()
     write!(s, "HTTP/1.1 {code} {}\r\nContent-Length: {}\r\nContent-Type: {kind}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\r\nConnection: close\r\n\r\n", if code < 400 { "OK" } else { "Error" }, body.len())?;
     s.write_all(body)
 }
+fn denied(state: &Mutex<State>) -> io::Result<()> {
+    let mut state = state
+        .lock()
+        .map_err(|_| io::Error::other("state unavailable"))?;
+    state.auth_failures = state.auth_failures.saturating_add(1);
+    Ok(())
+}
 fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<()> {
     let r = match parse(s) {
         Ok(r) => r,
@@ -314,11 +334,31 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
             _ => (),
         }
         if !authorized(&r, &cfg.viewer) {
+            denied(state)?;
             return status(s, 401);
         }
         let state = state
             .lock()
             .map_err(|_| io::Error::other("state unavailable"))?;
+        if r.path == "/api/security" {
+            let rows = state
+                .stats
+                .iter()
+                .map(|(id, c)| {
+                    format!(
+                        "{{\"id\":\"{id}\",\"accepted\":{},\"replays\":{},\"invalid_frames\":{}}}",
+                        c[0], c[1], c[2]
+                    )
+                })
+                .collect::<Vec<_>>();
+            let json = format!(
+                "{{\"uptime_seconds\":{},\"auth_failures\":{},\"devices\":[{}]}}",
+                state.started.elapsed().as_secs(),
+                state.auth_failures,
+                rows.join(",")
+            );
+            return reply(s, 200, "application/json", json.as_bytes());
+        }
         if r.path == "/api/devices" {
             let mut rows = Vec::new();
             for id in cfg.devices.keys() {
@@ -352,9 +392,11 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
     }
     if let Some(id) = r.path.strip_prefix("/api/frame/") {
         let Some(key) = cfg.devices.get(id) else {
+            denied(state)?;
             return status(s, 401);
         };
         if !authorized(&r, key) {
+            denied(state)?;
             return status(s, 401);
         }
         if r.headers.get("content-type").map(String::as_str) != Some("image/jpeg")
@@ -362,6 +404,10 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
             || !r.body.starts_with(&[0xff, 0xd8])
             || !r.body.ends_with(&[0xff, 0xd9])
         {
+            state
+                .lock()
+                .map_err(|_| io::Error::other("state unavailable"))?
+                .event(id, 2);
             return status(s, 415);
         }
         let seq = r

@@ -59,3 +59,10 @@ provider did no work. Inspect provider records before manually retrying.
 Do not put tokens, private footage, or exploitable installation details in public
 issues. Coordinate a private report with the repository owner through GitHub's
 private reporting feature if enabled. Rotate exposed credentials promptly.
+
+The Meta security reviewer is an **advisory** layer over bounded counters, not an
+authentication authority. Model output is schema-validated and cannot execute
+code, alter secrets, suppress deterministic signals or quarantine a device.
+Prompt injection can still influence model judgments; every consequential
+response remains a human decision. Tokens use OS randomness, never generated
+text. See [Meta AI](META_AI.md) for the explicit trust boundary and tests.
