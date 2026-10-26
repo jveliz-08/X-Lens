@@ -4,8 +4,11 @@
 platform: C firmware for explicitly configured ESP32-CAM boards, a Rust origin server with **zero
 external crates**, and a plain HTML/CSS/JS dashboard.
 
-This is an experimental v0, not an audited security product. No H.264, facial
-recognition, cloud dependency, or unmeasured FPS promise. Vendor camera/Wi-Fi/TLS
+This is an experimental v0, not an audited security product. Capture, storage
+and dashboard are self-hosted and work without cloud access. Real AI incident
+review through the implemented Meta adapter requires **Meta cloud inference**;
+a local open-weight inference backend is not implemented. No H.264, facial
+recognition, or unmeasured FPS promise. Vendor camera/Wi-Fi/TLS
 components and a standard TLS reverse proxy are necessary dependencies.
 
 **Target hardware:** ESP32-CAM with an **ESP-32S module and OV3660 sensor**;
@@ -59,7 +62,8 @@ ESP32-CAM (C, JPEG, one framebuffer, device token)
 Caddy (standard TLS boundary) → 127.0.0.1:8080 Rust origin
                                   ├── private bounded snapshot store
                                   ├── authenticated browser dashboard
-                                  └── manual server-side API adapter (off by default)
+                                  └── incident review: JPEG + telemetry → Meta cloud AI
+                                      (manual, budgeted; simulated demo available)
 ```
 
 The camera never sees external AI/API keys. The standard-library Python adapter

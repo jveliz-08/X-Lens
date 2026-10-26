@@ -45,3 +45,11 @@ across segments before asserting its content. The absolute deadline assertion
 remains in place. Earlier firmware CI failures for the `esp_timer` dependency
 and ESP-IDF's early component-discovery phase were fixed in separate commits;
 those failed runs are retained in the public history, not hidden.
+
+Latest full implementation check: [CI run 40375213040](https://github.com/jveliz-08/X-Lens/actions/runs/40375213040)
+passed both host and firmware jobs for `9f03ee4d371a55f592520466fa0bb1b345b8027b`.
+This includes explicit pin-map selection, the OV3660 runtime PID expectation,
+correlated incident reports and locally computed evidence fingerprints. Later
+README-only clarification does not change those executable paths. The standalone
+synthetic demo command was also run end to end and produced a `mock` report with
+local `review` policy and `actions_executed: false`.
