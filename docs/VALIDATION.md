@@ -16,10 +16,23 @@ Local Linux x86_64 container, Rust 1.99.1, 2026-10-26. Synthetic input only.
 - Chromium browser smoke: passed login, JPEG decoding, mobile layout, no token
   persistence, lock session, and no JavaScript exceptions. See `tests/browser.py`
   (optional Playwright/system Chromium test dependencies) and `dashboard.png`.
-- Firmware build: local Docker image unpack failed due to Docker storage space;
-  GitHub Actions firmware job provides a separate build check (see Actions).
+- Firmware reference build: passed in GitHub Actions with ESP-IDF 5.4.2 after
+  adding the missing `esp_timer` component requirement. Verified run:
+  https://github.com/jveliz-08/X-Lens/actions/runs/40372042440
+  (`d6f1760`, reference AI-Thinker map only). Linker report: 1,000,410-byte image,
+  103,834 bytes IRAM and 47,052 bytes static DRAM. These are build-time values,
+  not runtime heap/TLS measurements. The user's board remains unidentified.
+  Local Docker image unpack failed due to Docker storage space; CI supplied
+  the actual compiler/build validation instead.
 - Physical ESP32-CAM, firmware flashing, deployment and real footage: not tested
   or performed. TLS on a physical board and real provider calls are untested.
 
 No security audit or independent human code review is claimed. Tests and this
 implementation were produced with AI assistance.
+
+Publication checks: tracked content contains no runtime secrets, build outputs,
+vendor source or private configured email. A targeted private-key/token-pattern
+scan had no findings (not a comprehensive secret audit). Original synthetic
+fixture/screenshot and MIT project code only. Commits use the verified GitHub
+account's public noreply address; they are **unsigned**, not cryptographically
+verified signatures. No signing keys or GitHub credentials were created.

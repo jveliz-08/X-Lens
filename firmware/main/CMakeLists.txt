@@ -1,3 +1,5 @@
+idf_component_register(SRCS "main.c" INCLUDE_DIRS "." REQUIRES esp32-camera esp_http_client esp_wifi esp_event esp_netif nvs_flash mbedtls lwip esp_timer)
+# ESP-IDF returns early above during dependency discovery; inspect cache only in the build pass.
 set(XLENS_BOARD "" CACHE STRING "Explicit camera pin map: AI_THINKER reference or CUSTOM")
 if(XLENS_BOARD STREQUAL "AI_THINKER")
     set(XLENS_BOARD_DEFINE XLENS_AI_THINKER_REFERENCE=1)
@@ -9,5 +11,4 @@ elseif(XLENS_BOARD STREQUAL "CUSTOM")
 else()
     message(FATAL_ERROR "Identify the board first. Explicitly select -DXLENS_BOARD=AI_THINKER (reference only) or CUSTOM")
 endif()
-idf_component_register(SRCS "main.c" INCLUDE_DIRS "." REQUIRES esp32-camera esp_http_client esp_wifi esp_event esp_netif nvs_flash mbedtls lwip esp_timer)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE ${XLENS_BOARD_DEFINE})

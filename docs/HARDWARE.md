@@ -43,8 +43,9 @@ idf.py size
 
 Alternatively use `espressif/idf:v5.4.2` for a build-only container. The local
 development environment could not unpack that image (Docker storage exhausted);
-GitHub Actions includes a clean firmware build. Consult the current Actions run
-rather than inferring build success from source presence. No board was flashed.
+A reference firmware build passed in [GitHub Actions](https://github.com/jveliz-08/X-Lens/actions/runs/40372042440).
+Consult the current Actions run for the selected revision. This does not prove
+compatibility with the unidentified user board. No board was flashed.
 
 ## Provisioning (instructions only; no flashing performed)
 
