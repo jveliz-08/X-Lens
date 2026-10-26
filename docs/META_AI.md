@@ -18,10 +18,10 @@ to the fixed Meta endpoint and remains server-side.
 
 The operator must choose `--model` for any real call. Current official examples
 use `muse-spark-1.3`, but no default model is silently assumed for paid calls.
-The user's event may expose a different Meta/Llama API: its exact docs, account
-entitlement and model availability **remain unconfirmed**. The current adapter
-must not be described as tested against that unknown event API. No live provider
-request, key provisioning or paid action was performed.
+The event is Meta Global AI Developer Hackathon, whose public page lists Meta
+Model API. The participant's account entitlement and available model IDs
+**remain unconfirmed**. This adapter follows verified public Meta API docs but
+has not made a live request. No key provisioning or paid action was performed.
 
 Official sources checked 2026-10-26:
 - [Meta Chat Completions](https://dev.meta.ai/docs/protocols/chat-completions)
@@ -94,7 +94,7 @@ prompt-injection strings, schema errors, attempted tool output, local-rule
 non-bypass, output bounds, and no retry after timeout. These tests validate the
 application boundary, not model accuracy or adversarial robustness. No real
 Meta account, endpoint response or model behavior has been validated. The
-remaining integration step is confirmation of the user's exact Meta API/model
+remaining integration step is confirmation of the participant's available Meta model/account access
 and a separately authorized synthetic live test.
 
 ## Cost and report bounds
@@ -119,3 +119,10 @@ lifetime; this is contextual correlation, not a synchronized event timeline or
 proof of causality. A report can be older than the latest displayed snapshot.
 The dashboard states that limitation. Synthetic demo mode uses the exact output
 validator and report pipeline, but cannot establish real model quality.
+
+Each incident report also carries the exact consumed image sequence from the
+origin response, its SHA-256 fingerprint, byte count, sample time and sanitized
+telemetry snapshot. These fields are computed locally, not invented by the
+model. They link the explanation to an input even if a later frame is displayed.
+The fingerprint identifies content; it is not a device signature or proof that
+the physical scene was genuine. Retention can eventually remove that JPEG.

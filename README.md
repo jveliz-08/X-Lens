@@ -66,8 +66,8 @@ The camera never sees external AI/API keys. The standard-library Python adapter
 supports **Meta Model API** image understanding and an advisory cybersecurity
 review of bounded numeric telemetry. The concrete Meta wire format follows
 [official documentation](https://dev.meta.ai/docs/protocols/chat-completions);
-only synthetic/mock tests have run, not real Meta calls. The user's event API,
-account entitlement and model ID still need confirmation. A generic JSON image
+only synthetic/mock tests have run, not real Meta calls. The event's public page lists Meta Model API; the participant's
+account entitlement and available model ID still need confirmation. A generic JSON image
 adapter remains optional; it is not labeled as a Meta integration.
 
 ```sh

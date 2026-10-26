@@ -47,7 +47,7 @@ The exact pipeline is also covered by an HTTP/process integration test.
 
 ## Enabling real model inference later
 
-After the organizer's API/model and account entitlement are confirmed, an
+After participant model availability and account entitlement are confirmed, an
 operator can provide a server-side Meta key and run an explicitly authorized
 synthetic `--send` review. The implemented official Meta Model API path is
 specified in [META_AI.md](META_AI.md); no live call has been performed here.

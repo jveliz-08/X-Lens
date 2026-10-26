@@ -26,8 +26,9 @@ async function refresh() {
     badge.textContent = report.source === 'meta' ? 'META AI · ADVISORY' : 'SIMULATED AI · NO PROVIDER CALL';
     const summary = document.createElement('p'); summary.textContent = report.assessment?.incident_summary || 'Invalid review report';
     const action = document.createElement('p'); action.textContent = `Local policy: ${report.policy?.deterministic_recommendation || 'unknown'} · Human approval required · No actions executed`;
+    const evidence = document.createElement('p'); evidence.className = 'muted'; evidence.textContent = `Evidence sequence ${report.evidence?.sequence ?? 'unknown'} · SHA-256 ${(report.evidence?.image_sha256 || '').slice(0,12)} · ${report.evidence?.jpeg_bytes ?? '?'} bytes`;
     const stamp = document.createElement('p'); stamp.className = 'muted'; stamp.textContent = `Reviewed ${new Date(report.created_unix * 1000).toLocaleString()} · This report may be older than the displayed snapshot.`;
-    review.append(badge,summary,action,stamp);
+    review.append(badge,summary,action,evidence,stamp);
    } else { badge.textContent = 'AI REVIEW · NOT RUN'; const help = document.createElement('p'); help.textContent = 'Run a manual incident review to correlate the image with device security signals. External inference is off by default.'; review.append(badge,help); }
    card.append(review); cards.push(card);
   }

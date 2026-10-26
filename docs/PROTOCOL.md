@@ -11,7 +11,7 @@ headers, oversized headers, and conflicting framing are rejected.
 | `GET /api/review/{id}` | Viewer bearer | Latest bounded AI report, with explicit mock/live source; 404 until reviewed |
 | `GET /api/security` | Viewer bearer | Bounded numeric counters since process start; no tokens, IPs, raw logs or footage |
 | `GET /api/devices` | Viewer bearer | JSON device ID, latest stored sequence, retained count |
-| `GET /api/latest/{id}` | Viewer bearer | Latest JPEG; 404 until a frame exists |
+| `GET /api/latest/{id}` | Viewer bearer | Latest JPEG and `X-Sequence` response header; 404 until a frame exists |
 | `GET /`, `/app.js`, `/style.css` | Public | Static login shell; no footage or credentials |
 
 IDs: 1–24 lowercase ASCII letters, digits or hyphens. Tokens: 64 hexadecimal

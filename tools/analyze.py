@@ -9,6 +9,7 @@ on the camera. Not a built-in connection to any paid service.
 import argparse
 import base64
 import json
+import hashlib
 import os
 import pathlib
 import socket
@@ -83,9 +84,16 @@ def main():
     cfg_path=pathlib.Path(args.config)
     if cfg_path.stat().st_mode & 0o077: p.error('Config must be mode 600')
     cfg=dict(line.split('=',1) for line in cfg_path.read_text().splitlines() if line and not line.startswith('#'))
+    image_sequence=None
+    sampled=int(time.time())
     def local(path):
+        nonlocal image_sequence
         req=urllib.request.Request('http://127.0.0.1:8080'+path,headers={'Authorization':'Bearer '+cfg['viewer']})
-        with urllib.request.build_opener(NoRedirect).open(req,timeout=5) as r: return r.read(MAX_FRAME+1)
+        with urllib.request.build_opener(NoRedirect).open(req,timeout=5) as r:
+            if path.startswith('/api/latest/'):
+                image_sequence=int(r.headers['X-Sequence'])
+                if not 0<image_sequence<=2**64-1: raise ValueError('Invalid evidence sequence')
+            return r.read(MAX_FRAME+1)
     clean=telemetry(strict_json(local('/api/security'))) if args.mode in ('security','incident') else None
     data=local('/api/latest/'+args.device) if args.mode in ('image','incident') else None
     if args.provider=='meta':
@@ -121,7 +129,9 @@ def main():
         if args.mode=='incident':
             result={'version':1,'device':args.device,'created_unix':int(time.time()),'source':'meta' if args.send else 'mock',
                     'model':args.model if args.send else 'synthetic-fixture','assessment':result,
-                    'policy':policy(clean,result['security']),'actions_executed':False}
+                    'policy':policy(clean,result['security']),'actions_executed':False,
+                    'evidence':{'sequence':image_sequence,'image_sha256':hashlib.sha256(data).hexdigest(),
+                                'jpeg_bytes':len(data),'sampled_unix':sampled,'telemetry':clean}}
             if args.report_dir: save_report(args.report_dir,args.device,result)
         elif clean is not None: result=policy(clean,result)
     print(json.dumps(result,ensure_ascii=True))

@@ -2,6 +2,7 @@
 """Real socket/process tests with synthetic frames, private temporary state."""
 import concurrent.futures
 import http.client
+import hashlib
 import json
 import os
 import pathlib
@@ -58,7 +59,7 @@ class Platform(unittest.TestCase):
         self.assertEqual(send(1,token=VIEW),401)
         self.assertEqual(send(1),201)
         status,data,h=req('GET','/api/latest/demo')
-        self.assertEqual((status,data),(200,JPEG)); self.assertEqual(h['Cache-Control'],'no-store')
+        self.assertEqual((status,data),(200,JPEG)); self.assertEqual(h['Cache-Control'],'no-store'); self.assertEqual(h['X-Sequence'],'1')
         self.assertEqual(json.loads(req('GET','/api/devices')[1]),[{'id':'demo','sequence':1,'retained':1}])
         self.assertEqual(req('GET','/api/latest/../config')[0],404)
     def test_replay_restart_retention(self):
@@ -115,6 +116,8 @@ class Platform(unittest.TestCase):
         self.assertEqual(req('GET','/api/review/demo',token=DEVICE)[0],401)
         status,body,_=req('GET','/api/review/demo');self.assertEqual(status,200)
         report=json.loads(body);self.assertEqual(report['source'],'mock')
+        self.assertEqual(report['evidence']['sequence'],1)
+        self.assertEqual(report['evidence']['image_sha256'],hashlib.sha256(JPEG).hexdigest())
         self.assertEqual(report['policy']['deterministic_recommendation'],'review')
         self.assertFalse(report['actions_executed']);self.assertIn('SIMULATED',report['assessment']['incident_summary'])
         self.assertFalse((self.root/'analysis-budget.json').exists())

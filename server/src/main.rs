@@ -309,8 +309,20 @@ fn authorized(r: &Request, key: &str) -> bool {
         .is_some_and(|v| v.strip_prefix("Bearer ") == Some(key))
 }
 fn reply(s: &mut TcpStream, code: u16, kind: &str, body: &[u8]) -> io::Result<()> {
+    reply_with_sequence(s, code, kind, body, None)
+}
+fn reply_with_sequence(
+    s: &mut TcpStream,
+    code: u16,
+    kind: &str,
+    body: &[u8],
+    sequence: Option<u64>,
+) -> io::Result<()> {
+    let sequence_header = sequence
+        .map(|n| format!("X-Sequence: {n}\r\n"))
+        .unwrap_or_default();
     s.set_write_timeout(Some(Duration::from_secs(3)))?;
-    write!(s, "HTTP/1.1 {code} {}\r\nContent-Length: {}\r\nContent-Type: {kind}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\r\nConnection: close\r\n\r\n", if code < 400 { "OK" } else { "Error" }, body.len())?;
+    write!(s, "HTTP/1.1 {code} {}\r\nContent-Length: {}\r\nContent-Type: {kind}\r\n{sequence_header}Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'\r\nConnection: close\r\n\r\n", if code < 400 { "OK" } else { "Error" }, body.len())?;
     s.write_all(body)
 }
 fn denied(state: &Mutex<State>) -> io::Result<()> {
@@ -399,7 +411,7 @@ fn handle(s: &mut TcpStream, cfg: &Config, state: &Mutex<State>) -> io::Result<(
                 if fs::metadata(&path)?.len() > MAX_FRAME as u64 {
                     return status(s, 500);
                 }
-                return reply(s, 200, "image/jpeg", &fs::read(path)?);
+                return reply_with_sequence(s, 200, "image/jpeg", &fs::read(path)?, Some(*seq));
             }
         }
         return status(s, 404);

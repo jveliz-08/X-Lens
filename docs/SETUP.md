@@ -48,8 +48,8 @@ python3 tools/analyze.py --mode security
 ```
 
 For actual explicitly authorized calls, see [Meta setup and limits](META_AI.md).
-This project made **no real external provider calls**. The event-specific API
-and account/model access remain to be confirmed. No background analysis runs.
+This project made **no real external provider calls**. The event's public page lists Meta Model API; participant
+account/model access remains to be confirmed. No background analysis runs.
 
 The optional generic image contract remains available:
 
