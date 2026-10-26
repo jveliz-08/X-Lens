@@ -27,6 +27,10 @@ class Adapter(unittest.TestCase):
         f=Fake(b'x'*(MAX_RESPONSE+1))
         with self.assertRaises(UnknownOutcome): call_provider('https://example.com','synthetic',b'{}',f)
         self.assertEqual(f.calls,1)
+    def test_invalid_response_unknown(self):
+        f=Fake(b'not json')
+        with self.assertRaises(UnknownOutcome): call_provider('https://example.com','synthetic',b'{}',f)
+        self.assertEqual(f.calls,1)
     def test_response(self):
         self.assertEqual(call_provider('https://example.com','synthetic',b'{}',Fake(b'{"objects":[]}')),{'objects':[]})
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -24,6 +24,7 @@ struct Config {
     devices: BTreeMap<String, String>,
 }
 struct State {
+    writable: bool,
     high: BTreeMap<String, u64>,
     root: PathBuf,
 }
@@ -171,18 +172,38 @@ impl State {
             }
             high.insert(id.clone(), seq);
         }
-        Ok(Self { high, root })
+        Ok(Self {
+            high,
+            root,
+            writable: true,
+        })
     }
     fn save(&mut self, id: &str, seq: u64, body: &[u8]) -> io::Result<bool> {
+        self.save_using(id, seq, body, atomic)
+    }
+    fn save_using<F>(&mut self, id: &str, seq: u64, body: &[u8], persist: F) -> io::Result<bool>
+    where
+        F: Fn(&Path, &str, &[u8]) -> io::Result<()>,
+    {
+        if !self.writable {
+            return Err(io::Error::other("storage requires operator recovery"));
+        }
         if seq <= self.high[id] {
             return Ok(false);
         }
         let dir = self.root.join(id);
-        // Commit anti-replay watermark first; a crash may consume a sequence without a frame.
-        atomic(&dir, "sequence", seq.to_string().as_bytes())?;
+        // Burn the in-memory sequence first. A rename followed by failed fsync has
+        // ambiguous durability; stop all writes until recovery rather than reuse it.
         self.high.insert(id.into(), seq);
-        prune(&dir, RETAIN - 1)?;
-        atomic(&dir, &format!("{seq}.jpg"), body)?;
+        let result = (|| {
+            persist(&dir, "sequence", seq.to_string().as_bytes())?;
+            prune(&dir, RETAIN - 1)?;
+            persist(&dir, &format!("{seq}.jpg"), body)
+        })();
+        if let Err(e) = result {
+            self.writable = false;
+            return Err(e);
+        }
         Ok(true)
     }
 }
@@ -395,6 +416,34 @@ fn main() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ambiguous_storage_error_stops_writes() {
+        let root = env::temp_dir().join(format!(
+            "xlens-fault-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let cfg = Config {
+            viewer: "a".repeat(64),
+            devices: BTreeMap::from([("demo".into(), "b".repeat(64))]),
+        };
+        let mut state = State::open(root.clone(), &cfg).unwrap();
+        let result = state.save_using("demo", 10, b"synthetic", |dir, name, body| {
+            atomic(dir, name, body)?; // Simulate successful rename followed by a reported sync failure.
+            Err(io::Error::other("injected directory sync failure"))
+        });
+        assert!(result.is_err());
+        assert_eq!(state.high["demo"], 10);
+        assert!(state.save("demo", 10, b"synthetic").is_err());
+        assert!(state.save("demo", 11, b"synthetic").is_err());
+        let mut recovered = State::open(root.clone(), &cfg).unwrap();
+        assert!(!recovered.save("demo", 10, b"synthetic").unwrap());
+        assert!(recovered.save("demo", 11, b"synthetic").unwrap());
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn identifiers() {
         for v in ["../x", "a/b", "A", "", "a\"b"] {

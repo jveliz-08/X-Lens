@@ -3,7 +3,7 @@
 # Keep Caddy and X-Lens on the same host/network namespace.
 camera.example.com {
     request_body {
-        max_size 128KB
+        max_size 131072
     }
     reverse_proxy 127.0.0.1:8080 {
         transport http {

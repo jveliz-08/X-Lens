@@ -41,7 +41,9 @@ The receiver durably writes and fsyncs a per-device high-water mark before
 publishing a frame through same-directory atomic rename + directory fsync.
 Older frames are pruned before publishing. Success is returned after persistence.
 A power loss/storage failure may consume a sequence without saving its image;
-retrying that sequence is rejected. Sequence gaps are normal, not an error.
+retrying that sequence is rejected. Any storage write error stops all further
+upload writes until operator recovery and restart, including ambiguous rename/
+directory-fsync failure. The in-memory sequence is burned before persistence. Sequence gaps are normal, not an error.
 Missing/corrupt watermarks with existing frames fail closed. Never remove/reset
 watermarks while retaining the same device identity/key. Backups must include
 both frames and watermarks; rolling back storage weakens replay protection.

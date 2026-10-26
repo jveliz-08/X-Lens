@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Upload an original synthetic 8x8 JPEG; never accesses a camera."""
+"""Upload an original synthetic 320x240 JPEG; never accesses a camera."""
 import argparse
-import base64
 import pathlib
 import time
 import urllib.request
-# Original synthetic fixture generated from an 8x8 solid RGB image; no external media.
-JPEG = base64.b64decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAIAAgDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJgA/9k=')
+# Original test card; regenerate with the optional maintainer tool make_fixture.py.
+JPEG = (pathlib.Path(__file__).resolve().parents[1] / 'tests/fixtures/synthetic.jpg').read_bytes()
 def upload(url, key, seq, jpeg=JPEG):
     req = urllib.request.Request(url, jpeg, {'Authorization': f'Bearer {key}', 'Content-Type':'image/jpeg', 'X-Sequence':str(seq)}, method='POST')
     # URL fixed to localhost in CLI. Never carry credentials through redirects.

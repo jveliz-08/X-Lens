@@ -23,7 +23,7 @@ python3 tools/simulate.py --count 3
 
 Open http://127.0.0.1:8080 and enter the `viewer` value from
 `runtime/config.secret`. Tokens stay in tab memory. Lock the session when done.
-The simulator sends an original tiny synthetic JPEG, not camera footage.
+The simulator sends an original synthetic test-pattern JPEG, not camera footage.
 Do not put secrets in screenshots, shell history, URLs, or Git.
 
 The server binds only to loopback. HTTPS at a trusted local reverse proxy is
@@ -39,6 +39,8 @@ Automated checks do not constitute an independent security audit. Hardware
 operation, electrical safety, sustained capture, and real-world reliability have
 **not been validated on a physical ESP32-CAM**. Do not treat generated code or
 passing host tests as proof of production security.
+
+![Dashboard showing an original synthetic test signal](docs/dashboard.png)
 
 ## Architecture
 
