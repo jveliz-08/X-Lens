@@ -1,7 +1,7 @@
 # Submission kit
 
-Copy-paste material for the Cerebral Valley form and the X post. Replace the
-`[brackets]` before submitting.
+Copy-paste material for the Cerebral Valley form and the X post. Replace the remaining
+`[brackets]` (video and X post links) before submitting.
 
 ## Project name
 X-Lens
@@ -59,16 +59,16 @@ workflow. Tested on a real ESP32-CAM (OV3660) on a home mesh network.
 - **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`): voice questions.
 
 ## Built during the event
-[Fill in honestly. The rules allow showing only what was built during the event, and an
-unclear contribution means disqualification. Example, if a base existed before Oct 26:
-"The authenticated frame ingest and replay protection existed before the event. Built
-during the hackathon (Oct 26 – Nov 4): edge motion detection and demand-driven streaming in
-the firmware, event clips, every Meta AI feature (event vision, watches, learning from
-labels, Ask, voice, daily summary, SAM 3.1 zones), routines, the new dashboard and the demo
-recorder." If everything is new, say so.]
+Everything in this repository was built during the hackathon: the first commit is from
+Oct 26, 2026 (kickoff day) and the full history is public at
+https://github.com/jveliz-08/X-Lens/commits/main. That includes the Rust host, the ESP32-CAM
+firmware (edge motion detection, demand-driven streaming, ignore zones), event clips, every
+Meta AI feature (event vision, watches that learn from labels, Ask, voice, daily summary,
+SAM 3.1 zones), routines, the dashboard and the demo recorder. Third-party components
+(ESP-IDF, the camera driver, Caddy) are used as dependencies and not copied in.
 
 ## Links
-- Repo: [https://github.com/…]
+- Repo: https://github.com/jveliz-08/X-Lens
 - Video (≤3 min): [YouTube/Vimeo link]; file: `docs/demo.mp4`
 - X post: [link]
 
