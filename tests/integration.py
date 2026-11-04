@@ -35,8 +35,9 @@ class Platform(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory(); self.root=pathlib.Path(self.tmp.name)
         cfg=self.root/'config'; cfg.write_text(f'viewer={VIEW}\noperator={OPERATOR}\ndevice.demo={DEVICE}\n'); cfg.chmod(0o600)
         self.proc=None; self.start()
-    def start(self):
-        self.proc=subprocess.Popen([str(BIN),str(self.root/'config'),str(self.root/'data')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    def start(self,mode='disabled'):
+        env={**os.environ,'XLENS_RULE_MODE':mode}; env.pop('XLENS_AI_STATE_DIR',None); env.pop('XLENS_META_KEY_FILE',None)
+        self.proc=subprocess.Popen([str(BIN),str(self.root/'config'),str(self.root/'data')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,env=env)
         for _ in range(100):
             if self.proc.poll() is not None: self.fail('server did not start')
             try:
@@ -73,9 +74,135 @@ class Platform(unittest.TestCase):
         self.assertEqual(req('GET','/api/latest/../config')[0],404)
     def test_replay_restart_retention(self):
         for seq in range(1,41): self.assertEqual(send(seq),201)
-        self.assertEqual(len(list((self.root/'data/demo').glob('*.jpg'))),32)
+        # Live frames stay in memory; disk keeps throttled snapshots (retention cap is a unit test).
+        self.assertIn(len(list((self.root/'data/demo').glob('*.jpg'))),range(1,33))
+        self.assertEqual(req('GET','/api/latest/demo')[2]['X-Sequence'],'40')
+        self.assertEqual(json.loads(req('GET','/api/devices')[1])[0]['sequence'],40)
         self.assertEqual(send(40),409); self.assertEqual(send(1),409)
         self.stop(); self.start(); self.assertEqual(send(40),409); self.assertEqual(send(41),201)
+    def test_live_stream(self):
+        def open_stream(token=VIEW):
+            c=http.client.HTTPConnection('127.0.0.1',8080,timeout=8)
+            c.request('GET','/api/stream/demo',headers={'Authorization':'Bearer '+token}); return c,c.getresponse()
+        c,r=open_stream(DEVICE); self.assertEqual(r.status,401); c.close()
+        self.assertEqual(req('GET','/api/stream/unknown')[0],404)
+        c,r=open_stream()
+        self.assertEqual(r.status,200); self.assertTrue(r.getheader('Content-Type').startswith('multipart/x-mixed-replace'))
+        def part():
+            self.assertEqual(r.fp.readline(),b'--frame\r\n'); head={}
+            while (line:=r.fp.readline())!=b'\r\n': k,v=line.decode().split(':',1); head[k.lower()]=v.strip()
+            body=r.fp.read(int(head['content-length'])); self.assertEqual(r.fp.readline(),b'\r\n'); return head,body
+        self.assertEqual(send(1),201)
+        head,body=part(); self.assertEqual((head['content-type'],head['x-sequence'],body),('image/jpeg','1',JPEG))
+        self.assertEqual(send(2),201); self.assertEqual(part()[0]['x-sequence'],'2')
+        self.assertEqual(send(2),409) # Replays never reach viewers.
+        head,body=part(); self.assertEqual((head['content-type'],body),('text/plain',b'')) # Idle heartbeat.
+        c.close()
+        self.assertEqual(req('GET','/api/devices')[0],200) # Streams do not occupy request workers.
+    def test_motion_events_watches_and_ask(self):
+        self.stop(); self.start('mock'); H={'X-Protocol':'1','Content-Type':'text/plain'}
+        def frame(seq,motion):
+            return req('POST','/api/frame/demo',JPEG,DEVICE,{'X-Sequence':str(seq),'Content-Type':'image/jpeg','X-Motion':str(motion)})
+        watch='device=demo\nprompt=A parcel left at the door\ncooldown=60\nenabled=1'
+        self.assertEqual(req('POST','/api/watches/parcel',watch,VIEW,H)[0],401) # Viewers cannot spend AI budget.
+        self.assertEqual(req('POST','/api/watches/parcel',watch.replace('demo','ghost'),OPERATOR,H)[0],400)
+        self.assertEqual(req('POST','/api/watches/parcel',watch,OPERATOR,H)[0],204)
+        status,_,headers=frame(1,0); self.assertEqual((status,headers['X-Live-Viewers']),(201,'0'))
+        for seq in range(2,8): self.assertEqual(frame(seq,200)[0],201)
+        live=json.loads(req('GET','/api/activity')[1])
+        self.assertEqual(live['devices'][0]['event'],1); self.assertIsNone(live['events'][0]['end'])
+        self.assertEqual(req('GET','/api/keyframe/1')[0],404) # Keyframe once the event closes.
+        self.assertEqual(frame(8,999)[0],201); self.assertEqual(frame(9,0)[0],201)
+        for _ in range(100): # Ends after 5 s without frames; then the vision worker annotates it.
+            event=json.loads(req('GET','/api/activity')[1])['events'][0]
+            if event['ai']: break
+            time.sleep(.1)
+        self.assertEqual((event['id'],event['peak'],event['frames']),(1,999,9))
+        self.assertEqual((event['ai']['source'],event['ai']['alerts']),('mock',[]))
+        self.assertTrue(event['ai']['caption'].startswith('SIMULATED'))
+        clip=req('GET','/api/clip/1')[1]; self.assertEqual(clip[:4],b'XLC1')
+        self.assertEqual(req('GET','/api/keyframe/1')[:2],(200,JPEG))
+        self.assertEqual(req('GET','/api/clip/1',token=DEVICE)[0],401)
+        question='¿Pasó algo?'.encode()
+        self.assertEqual(req('POST','/api/ask/demo',question,VIEW,H)[0],401)
+        status,body,_=req('POST','/api/ask/demo',question,OPERATOR,{**H,'X-Utc-Offset':'-180'})
+        self.assertEqual(status,200); answer=json.loads(body)
+        self.assertEqual((answer['source'],answer['events']),('mock',[1])); self.assertIn('SIMULADO',answer['answer'])
+        self.assertEqual(req('POST','/api/analyze/1','',OPERATOR,H)[0],202)
+        # The key can be set from the dashboard, switches to live Meta, and is never returned.
+        self.assertEqual(req('POST','/api/ai-key','short',OPERATOR,H)[0],400)
+        self.stop(); self.start('auto')
+        self.assertEqual(req('POST','/api/ai-key','meta-test-key-0123',VIEW,H)[0],401)
+        self.assertEqual(req('POST','/api/ai-key','meta-test-key-0123',OPERATOR,H)[0],204)
+        secret=self.root/'meta.secret'; self.assertEqual((secret.read_text(),secret.stat().st_mode&0o777),('meta-test-key-0123',0o600))
+        status,body,_=req('GET','/api/activity'); ai=json.loads(body)['ai']
+        self.assertEqual((ai['mode'],ai['key'],ai['model']),('meta',True,'muse-spark-1.3')); self.assertNotIn(b'meta-test-key',body)
+        self.assertEqual(req('POST','/api/ai-key','',OPERATOR,H)[0],204); self.assertFalse(secret.exists())
+        self.assertEqual(json.loads(req('GET','/api/activity')[1])['ai']['mode'],'mock')
+        self.assertEqual(req('POST','/api/watches/parcel','delete=1',OPERATOR,H)[0],204)
+        self.assertEqual(json.loads(req('GET','/api/watches')[1]),[])
+    def test_zones_routines_labels_digest_and_voice(self):
+        self.stop(); self.start('mock'); H={'X-Protocol':'1','Content-Type':'text/plain'}
+        def frame(seq,motion):
+            return req('POST','/api/frame/demo',JPEG,DEVICE,{'X-Sequence':str(seq),'Content-Type':'image/jpeg','X-Motion':str(motion)})
+        # Ignore zones ride on every upload reply so the camera can apply them.
+        self.assertEqual(frame(1,0)[2]['X-Motion-Mask'],'000000000000')
+        self.assertEqual(req('POST','/api/zones/demo','mask=000000000003',VIEW,H)[0],401)
+        for bad in ['mask=ffffffffffff','mask=3','zones=000000000003']: self.assertEqual(req('POST','/api/zones/demo',bad,OPERATOR,H)[0],400)
+        self.assertEqual(req('POST','/api/zones/demo','mask=00000000ff03',OPERATOR,H)[0],204)
+        self.assertEqual(frame(2,0)[2]['X-Motion-Mask'],'00000000ff03')
+        self.assertEqual(json.loads(req('GET','/api/zones')[1]),{'demo':'00000000ff03'})
+        status,body,_=req('POST','/api/zones-suggest/demo','tree',OPERATOR,H) # No key: SAM proposes nothing.
+        self.assertEqual((status,json.loads(body)['source'],json.loads(body)['mask']),(200,'mock','000000000000'))
+        # Routines: a window that already ended today with no motion is missed; an all-day one is seen.
+        self.assertEqual(req('POST','/api/routines/wake','device=demo\nlabel=Gets up\nfrom=0\nto=1\noffset=0\nenabled=1',VIEW,H)[0],401)
+        self.assertEqual(req('POST','/api/routines/wake','device=demo\nlabel=Gets up\nfrom=9\nto=1\noffset=0\nenabled=1',OPERATOR,H)[0],400)
+        self.assertEqual(req('POST','/api/routines/wake','device=demo\nlabel=Gets up\nfrom=0\nto=1\noffset=0\nenabled=1',OPERATOR,H)[0],204)
+        watch='device=demo\nprompt=A parcel left at the door\ncooldown=60\nenabled=1'
+        self.assertEqual(req('POST','/api/watches/parcel',watch,OPERATOR,H)[0],204)
+        for seq in range(3,9): self.assertEqual(frame(seq,200)[0],201)
+        self.assertEqual(req('POST','/api/routines/day','device=demo\nlabel=Any activity\nfrom=0\nto=1440\noffset=0\nenabled=1',OPERATOR,H)[0],204)
+        for _ in range(100):
+            act=json.loads(req('GET','/api/activity')[1])
+            if act['events'] and act['events'][0]['ai'] and len(act['notices'])>=(2 if time.gmtime().tm_hour or time.gmtime().tm_min>=2 else 1): break
+            time.sleep(.1)
+        status={r['id']:r['status'] for r in act['routines']}
+        self.assertEqual(status['day'],'seen')
+        if time.gmtime().tm_hour or time.gmtime().tm_min>=2: self.assertEqual(status['wake'],'missed')
+        self.assertIn('missed' if status['wake']=='missed' else 'seen',[n['kind'] for n in act['notices']])
+        # Labels: only for finished events and existing watches; they teach the next analyses.
+        H2={**H}
+        self.assertEqual(req('POST','/api/feedback/1','watch=parcel\nverdict=wrong',VIEW,H2)[0],401)
+        self.assertEqual(req('POST','/api/feedback/1','watch=ghost\nverdict=wrong',OPERATOR,H2)[0],404)
+        self.assertEqual(req('POST','/api/feedback/1','watch=parcel\nverdict=maybe',OPERATOR,H2)[0],400)
+        self.assertEqual(req('POST','/api/feedback/99','watch=parcel\nverdict=wrong',OPERATOR,H2)[0],404)
+        self.assertEqual(req('POST','/api/feedback/1','watch=parcel\nverdict=wrong',OPERATOR,H2)[0],204)
+        act=json.loads(req('GET','/api/activity')[1])
+        self.assertEqual(act['feedback'],[{'event':1,'watch':'parcel','right':False}])
+        self.assertEqual(json.loads(req('GET','/api/watches')[1])[0]['learned'],1)
+        self.assertEqual(req('POST','/api/feedback/1','watch=parcel\nverdict=clear',OPERATOR,H2)[0],204)
+        self.assertEqual(json.loads(req('GET','/api/activity')[1])['feedback'],[])
+        # Daily summary: one call, stored for the dashboard.
+        self.assertEqual(req('POST','/api/digest','today',OPERATOR,H)[0],400) # Needs the local time zone.
+        status,body,_=req('POST','/api/digest','today',OPERATOR,{**H,'X-Utc-Offset':'0'})
+        self.assertEqual(status,200); digest=json.loads(body)
+        self.assertEqual(digest['source'],'mock'); self.assertIn('SIMULATED',digest['summary']); self.assertEqual(digest['highlights'][0]['event'],1)
+        self.assertEqual(json.loads(req('GET','/api/activity')[1])['digest'],digest)
+        # Voice: operator only, WAV only, and without a key the browser recognizer is used instead.
+        wav=b'RIFF'+b'\0'*60
+        self.assertEqual(req('POST','/api/transcribe',wav,VIEW,{'X-Protocol':'1','Content-Type':'audio/wav'})[0],401)
+        self.assertEqual(req('POST','/api/transcribe',wav,OPERATOR,{'X-Protocol':'1','Content-Type':'text/plain'})[0],400)
+        self.assertEqual(req('POST','/api/transcribe',wav,OPERATOR,{'X-Protocol':'1','Content-Type':'audio/wav'})[0],503)
+        big=b'\0'*(300*1024) # Larger than a frame, within the audio limit.
+        self.assertEqual(req('POST','/api/transcribe',big,OPERATOR,{'X-Protocol':'1','Content-Type':'audio/wav'})[0],503)
+        self.assertTrue(self.raw(b'POST /api/frame/demo HTTP/1.1\r\nHost: x\r\nContent-Length: 300000\r\n\r\n').startswith(b'HTTP/1.1 400'))
+        # Everything survives a restart.
+        self.stop(); self.start('mock'); act=json.loads(req('GET','/api/activity')[1])
+        self.assertEqual((act['zones'],len(act['routines']),act['digest']),({'demo':'00000000ff03'},2,digest))
+        self.assertEqual(req('POST','/api/routines/wake','delete=1',OPERATOR,H)[0],204)
+    def test_favicon_probe_is_not_an_auth_failure(self):
+        self.assertEqual(req('GET','/favicon.ico',token='')[0],404)
+        self.assertEqual(json.loads(req('GET','/api/security')[1])['auth_failures'],0)
     def test_concurrent_duplicate(self):
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool: statuses=list(pool.map(lambda _:send(8),range(4)))
         self.assertEqual(sorted(statuses),[201,409,409,409])

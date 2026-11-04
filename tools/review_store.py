@@ -18,8 +18,13 @@ def atomic_json(path,value):
 
 def reserve_budget(root,daily,cooldown,now=None):
     if not 1<=daily<=100 or not 60<=cooldown<=86400: raise ValueError('Budget must be 1..100/day; cooldown 60..86400 seconds')
+    reserve_slot(root,'analysis-budget.json',daily,cooldown,now)
+
+def reserve_slot(root,name,daily,cooldown,now=None):
+    """Reserve one call in a named private ledger before any network I/O."""
+    if not 1<=daily<=10000 or not 0<=cooldown<=86400 or name not in ('analysis-budget.json','vision-budget.json','voice-budget.json'): raise ValueError('Invalid budget settings')
     now=int(time.time()) if now is None else now
-    path=pathlib.Path(root)/'analysis-budget.json'
+    path=pathlib.Path(root)/name
     if path.exists():
         if path.stat().st_size>1024: raise ValueError('Invalid budget ledger; manual recovery required')
         v=strict_json(path.read_text())

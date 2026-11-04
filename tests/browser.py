@@ -8,6 +8,7 @@ import time
 import json
 from playwright.sync_api import sync_playwright, expect
 from integration import BIN,VIEW,DEVICE,OPERATOR,send,req
+from simulate import JPEG
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as temp:
     root=pathlib.Path(temp);cfg=root/'config';cfg.write_text(f'viewer={VIEW}\noperator={OPERATOR}\ndevice.demo={DEVICE}\n');cfg.chmod(0o600)
@@ -33,6 +34,7 @@ with tempfile.TemporaryDirectory() as temp:
                   if(window.__delayCamera)await new Promise(resolve=>window.__releaseCamera=resolve);
                   return s;
                 };
+                window.__said=[];if(window.speechSynthesis)speechSynthesis.speak=u=>window.__said.push(u.text);
                 window.SpeechRecognition=class {
                   constructor(){window.__speech=this;this.aborted=false;}
                   start(){window.__speechStarts=(window.__speechStarts||0)+1;}
@@ -124,7 +126,84 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#lock').click();assert page.evaluate('window.__speech.aborted')
             unlock();page.locator('[data-tab=sources]').click();page.locator('#camera-preview').click();expect(page.locator('#upload-start')).to_be_enabled()
             page.evaluate("window.dispatchEvent(new Event('pagehide'))");assert page.evaluate('window.__tracks.every(t=>t.readyState==="ended")')
+            # Edge motion → event clip → AI timeline, player, plain-language watch, Meta key, Ask and alerts (simulation mode).
+            page.set_viewport_size({'width':1440,'height':1000});unlock()
+            seq=int(json.loads(req('GET','/api/device-state/demo',token=DEVICE)[1])['next_sequence'])
+            for i,m in enumerate([0,0,240,320,280,200,0]):
+                assert req('POST','/api/frame/demo',JPEG,DEVICE,{'X-Sequence':str(seq+i),'Content-Type':'image/jpeg','X-Motion':str(m)})[0]==201
+            for _ in range(150):
+                events=json.loads(req('GET','/api/activity')[1])['events']
+                if events and events[0]['ai']:break
+                time.sleep(.1)
+            page.locator('[data-tab=activity]').click();page.locator('#refresh').evaluate('b=>b.click()')
+            expect(page.locator('.event .caption').first).to_contain_text('SIMULATED')
+            page.wait_for_function("()=>document.querySelector('.event .thumb img')?.naturalWidth===320")
+            page.locator('.event .thumb').first.click();expect(page.locator('#player')).to_be_visible()
+            page.wait_for_function("()=>document.querySelector('#player-img').naturalWidth===320")
+            page.keyboard.press('Escape');expect(page.locator('#player')).to_be_hidden()
+            page.screenshot(path=str(ROOT/'docs/activity.png'),full_page=True)
+            page.locator('[data-tab=rules]').click();page.locator('#ai-operator').fill(OPERATOR)
+            page.locator('#watch-prompt').fill('A parcel left at the door');page.locator('#watch-id').fill('parcel');page.locator('#watch-save').click()
+            expect(page.locator('#watch-list')).to_contain_text('A parcel left at the door')
+            page.locator('#ai-key').fill('meta-test-key-0123');page.locator('#ai-key-save').click()
+            expect(page.locator('#ai-message')).to_contain_text('Key saved');assert page.locator('#ai-key').input_value()==''
+            assert (root/'meta.secret').read_text()=='meta-test-key-0123' and (root/'meta.secret').stat().st_mode&0o777==0o600
+            assert b'meta-test-key' not in req('GET','/api/activity')[1]
+            page.locator('#ai-key-remove').click();expect(page.locator('#ai-message')).to_contain_text('Key removed');assert not (root/'meta.secret').exists()
+            page.locator('[data-tab=overview]').click();page.locator('#ask-input').fill('¿Pasó algo en la puerta?');page.locator('#ask-send').click()
+            expect(page.locator('#ask-answer')).to_contain_text('SIMULADO');page.locator('#ask-answer .cite').first.click()
+            expect(page.locator('#player')).to_be_visible();page.locator('#player-close').click()
+            page.locator('#ask-input').fill('Avísame si la puerta del garaje queda abierta');page.locator('#ask-send').click()
+            page.locator('#ask-answer button.primary').click();expect(page.locator('#ask-answer button.primary')).to_contain_text('Watch created')
+            assert any(w['prompt']=='la puerta del garaje queda abierta' for w in json.loads(req('GET','/api/watches')[1]))
+            page.locator('#ask-suggestions button').first.click();expect(page.locator('#ask-answer')).to_contain_text('SIMULATED')
+            assert page.locator('#histogram .bar').count()==24 and page.locator('#histogram .bar span[style*="height: 100%"]').count()==1
+            def with_alert(route):
+                data=json.loads(route.fetch().text());data['events'][0]['ai']['alerts']=[{'watch':'parcel','confidence':'high','reason':'A box is on the doormat.'}]
+                route.fulfill(status=200,content_type='application/json',body=json.dumps(data))
+            page.route('**/api/activity',with_alert);page.locator('#refresh').click()
+            expect(page.locator('#alerts')).to_contain_text('A parcel left at the door');expect(page.locator('.toast')).to_contain_text('A box is on the doormat.')
+            page.screenshot(path=str(ROOT/'docs/live.png'),full_page=True)
+            # Watches that learn: a false alarm is labeled, leaves the banner and becomes a reference example.
+            event_id=events[0]['id'];page.locator('[data-tab=activity]').click()
+            page.locator('.event-alert button',has_text='False alarm').first.click()
+            expect(page.locator('.event-alert em').first).to_contain_text('False alarm')
+            assert json.loads(req('GET','/api/activity')[1])['feedback']==[{'event':event_id,'watch':'parcel','right':False}]
+            assert json.loads(req('GET','/api/watches')[1])[0]['learned']==1
+            page.locator('.teach button').first.click();expect(page.locator('.event .button-row button',has_text='Example for')).to_be_visible()
+            assert len(json.loads(req('GET','/api/activity')[1])['feedback'])==2
+            page.unroute('**/api/activity')
+            # Routines: all-day window, the recorded event marks it done.
+            page.locator('[data-tab=rules]').click();page.locator('#routine-label').fill('Mom gets up')
+            page.locator('#routine-from').fill('00:00');page.locator('#routine-to').fill('23:59');page.locator('#routine-save').click()
+            expect(page.locator('#routine-list')).to_contain_text('Mom gets up')
+            page.locator('[data-tab=activity]').click()
+            expect(page.locator('#routine-status')).to_contain_text('first motion',timeout=12000)
+            # Daily summary (simulated statistics) links to clips.
+            page.locator('#digest-make').click();expect(page.locator('#digest')).to_contain_text('SIMULATED')
+            page.locator('#digest .cite').first.click();expect(page.locator('#player')).to_be_visible();page.locator('#player-close').click()
+            page.screenshot(path=str(ROOT/'docs/care.png'),full_page=True)
+            # Ignore zones: paint two cells; SAM needs a key; the camera receives the saved mask.
+            page.locator('[data-tab=overview]').click();page.locator('.camera-bar button',has_text='Zones').first.click()
+            expect(page.locator('#zones')).to_be_visible();page.wait_for_function("()=>document.querySelector('#zones-img').naturalWidth===320")
+            page.locator('#zones-grid button').nth(0).click();page.locator('#zones-grid button').nth(1).click()
+            page.locator('#zones-concept').fill('tree');page.locator('#zones-detect').click();expect(page.locator('#zones-message')).to_contain_text('needs your Meta key')
+            page.locator('#zones-save').click();expect(page.locator('#zones-message')).to_contain_text('Saved')
+            assert json.loads(req('GET','/api/zones')[1])=={'demo':'000000000003'}
+            assert req('POST','/api/frame/demo',JPEG,DEVICE,{'X-Sequence':str(seq+20),'Content-Type':'image/jpeg'})[2]['X-Motion-Mask']=='000000000003'
+            page.screenshot(path=str(ROOT/'docs/zones.png'))
+            page.locator('#zones-close').click();page.locator('#refresh').click()
+            expect(page.locator('.camera .zone-overlay .ignored')).to_have_count(2)
+            # Voice without a key: browser recognizer after consent; the answer is spoken locally.
+            page.once('dialog',lambda d:d.accept());page.locator('#ask-mic').click()
+            page.wait_for_function('()=>window.__speech&&!window.__speech.aborted')
+            page.evaluate("window.__speech.onresult({results:[[{transcript:'¿Hay alguien en la puerta?'}]]})")
+            expect(page.locator('#ask-input')).to_have_value('¿Hay alguien en la puerta?');expect(page.locator('#ask-answer')).to_contain_text('SIMULADO')
+            page.wait_for_function("()=>window.__said.some(t=>t.startsWith('SIMULADO'))")
+            page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            page.locator('#lock').click();assert page.locator('#ai-operator').input_value()=='' and page.locator('#ask-input').input_value()==''
+            assert page.evaluate('localStorage.length')==0 and page.evaluate('sessionStorage.length')==0
             assert not errors,errors
             browser.close()
-        print('Browser workflows passed: synthetic webcam, lifecycle/late permission, rules confirm/cancel/edit, speech consent/stub/abort, errors/recovery, mobile, no persistent credentials.')
+        print('Browser workflows passed: motion events/clips/AI timeline, watches, labels, routines, daily summary, zones, voice, Meta key, Ask, alerts, synthetic webcam, lifecycle/late permission, rules confirm/cancel/edit, speech consent/stub/abort, errors/recovery, mobile, no persistent credentials.')
     finally:proc.terminate();proc.wait(timeout=5)

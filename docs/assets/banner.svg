@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="340" viewBox="0 0 1200 340" role="img" aria-label="X-Lens: a $7 camera that understands">
+  <defs>
+    <radialGradient id="glow" cx="78%" cy="45%" r="60%">
+      <stop offset="0" stop-color="#2a3d18"/>
+      <stop offset="1" stop-color="#0b0e11"/>
+    </radialGradient>
+    <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b4652"/>
+      <stop offset="1" stop-color="#0d1115"/>
+    </linearGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#1a2027" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="340" rx="22" fill="url(#glow)"/>
+  <rect width="1200" height="340" rx="22" fill="url(#grid)" opacity=".55"/>
+  <g font-family="Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
+    <circle cx="86" cy="92" r="17" fill="none" stroke="#c5f095" stroke-width="7"/>
+    <text x="118" y="106" font-size="42" font-weight="800" fill="#e8edf1" letter-spacing="-1">X-Lens</text>
+    <text x="64" y="178" font-size="46" font-weight="800" fill="#e8edf1" letter-spacing="-1.2">A $7 camera that understands.</text>
+    <text x="64" y="220" font-size="21" fill="#c5f095">Motion on the chip · clips that stay home · one Meta AI call per event</text>
+    <g font-size="15" font-weight="600">
+      <rect x="64" y="252" width="150" height="34" rx="17" fill="#c5f095"/><text x="139" y="274" text-anchor="middle" fill="#15240f">✦ Muse Spark</text>
+      <rect x="224" y="252" width="110" height="34" rx="17" fill="none" stroke="#c5f095"/><text x="279" y="274" text-anchor="middle" fill="#c5f095">◎ SAM 3.1</text>
+      <rect x="344" y="252" width="208" height="34" rx="17" fill="none" stroke="#c5f095"/><text x="448" y="274" text-anchor="middle" fill="#c5f095">🎙 Muse Voice Transcribe</text>
+      <rect x="562" y="252" width="150" height="34" rx="17" fill="none" stroke="#323b45"/><text x="637" y="274" text-anchor="middle" fill="#8d99a5">ESP32-CAM · Rust</text>
+    </g>
+  </g>
+  <!-- Camera board -->
+  <g transform="translate(890 52) rotate(-8)">
+    <rect x="0" y="0" width="190" height="250" rx="14" fill="#1f5c3a" stroke="#2f7a50" stroke-width="3"/>
+    <rect x="22" y="160" width="146" height="70" rx="6" fill="#c9ccd1"/>
+    <text x="95" y="200" font-family="Consolas, monospace" font-size="15" fill="#4a5058" text-anchor="middle">ESP32-S</text>
+    <rect x="44" y="30" width="102" height="102" rx="10" fill="#111"/>
+    <circle cx="95" cy="81" r="38" fill="url(#lens)" stroke="#5b6672" stroke-width="3"/>
+    <circle cx="95" cy="81" r="18" fill="#05070a"/>
+    <circle cx="86" cy="72" r="6" fill="#8fb8ff" opacity=".55"/>
+    <g fill="#d8b34a"><rect x="6" y="20" width="8" height="14"/><rect x="6" y="44" width="8" height="14"/><rect x="6" y="68" width="8" height="14"/><rect x="176" y="20" width="8" height="14"/><rect x="176" y="44" width="8" height="14"/><rect x="176" y="68" width="8" height="14"/></g>
+    <circle cx="160" cy="146" r="6" fill="#ff4d4f"/>
+  </g>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700">
+    <rect x="806" y="74" width="92" height="28" rx="14" fill="#ff4d4f"/><text x="852" y="93" text-anchor="middle" fill="#fff">● REC #1</text>
+    <rect x="1048" y="262" width="118" height="28" rx="14" fill="#12161b" stroke="#c5f095"/><text x="1107" y="281" text-anchor="middle" fill="#c5f095">28 ms motion</text>
+  </g>
+</svg>

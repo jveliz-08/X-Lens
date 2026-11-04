@@ -38,6 +38,45 @@ install the binary at `/opt/x-lens/x-lens` and private config at
 installing the service. Nothing in this repository deploys or starts it for you.
 Caddy configuration and systemd service were not deployed during development.
 
+## LAN without a domain: Caddy internal CA
+
+For a home network with no public domain, Caddy can serve an IP address with its
+own CA, and the firmware can trust that CA without disabling verification:
+
+```text
+{
+	skip_install_trust
+	auto_https disable_redirects
+	default_sni 192.168.1.31
+}
+https://192.168.1.31:8888 {
+	tls internal
+	request_body {
+		max_size 131072
+	}
+	reverse_proxy 127.0.0.1:8080 {
+		flush_interval -1
+	}
+}
+```
+
+Copy `<caddy storage>/pki/authorities/local/root.crt` next to your private build
+files and add it to the ESP-IDF bundle with an extra defaults file:
+
+```text
+CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CUSTOM_CERTIFICATE_BUNDLE_PATH="/abs/path/caddy_root.pem"
+```
+
+```sh
+idf.py -DXLENS_BOARD=AI_THINKER "-DSDKCONFIG_DEFAULTS=sdkconfig.defaults;/abs/path/sdkconfig.local" build
+```
+
+Provision the board with `https://192.168.1.31:8888` as its origin. Reserve the
+host's IP in your router: the certificate and the camera configuration name it.
+Browsers will warn about the private CA unless you install it; the local
+dashboard at `http://127.0.0.1:8080` needs no certificate.
+
 ## Operator API/AI adapter
 
 The default adapter is Meta Model API. Both commands below are local dry-runs:

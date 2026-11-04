@@ -8,3 +8,4 @@ __pycache__/
 /firmware/sdkconfig.old
 /firmware/dependencies.lock
 /firmware/main/board_pins.local.h
+/.vscode/
