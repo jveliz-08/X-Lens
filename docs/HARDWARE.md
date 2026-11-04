@@ -7,9 +7,37 @@ PSRAM health or flash capacity. No user photograph is stored in this repository.
 
 Espressif's pinned camera driver supports OV3660. Runtime initialization reads
 and logs the detected sensor PID and fails closed if it does not match the
-selected expectation (OV3660 by default). JPEG defaults remain 320×240, quality
-16, one PSRAM framebuffer, capture/upload/return, at least five seconds between
-cycles. No FPS or runtime hardware heap measurement is claimed.
+selected expectation (OV3660 by default). Defaults: 320×240 JPEG (`FRAME_SIZE`), quality
+12, two PSRAM framebuffers (grab latest), capture/upload/return continuously over
+one keep-alive HTTPS connection, capped at ~15 fps (`MIN_FRAME_MS`). Wi-Fi power
+save is off and TX power is capped at 15 dBm (`MAX_TX_POWER`). Every 5 s the log
+reports fps, average JPEG size, last status, RSSI and internal heap.
+
+Edge features (all in `main.c`):
+
+- **Motion score**: each JPEG is decoded at 1/8 scale with `esp_jpeg` (40×30 RGB
+  cells, ~28 ms at 160 MHz), converted to luma and compared with an exponential
+  moving-average background. The mean shift is subtracted first, so auto-exposure
+  or a light switch does not count as motion. The changed-cell ratio (per mille)
+  is sent as `X-Motion`. Motion is not reported for 4 s after the sensor starts.
+- **Ignore zones**: every upload reply carries `X-Motion-Mask` (12 hex digits, an
+  8×6 grid). Cells in the mask still update the background but are excluded from
+  the score, which becomes changed/watched cells. The mask arrives with the next
+  upload after the operator saves it; no reboot, no NVS write.
+- **Demand-driven rate**: full rate while motion was seen in the last 5 s or the
+  server reports `X-Live-Viewers > 0`; otherwise one frame per second.
+- **Wi-Fi**: all-channel scan joining the strongest node (mesh networks share one
+  SSID); after 15 consecutive failed uploads the board re-joins Wi-Fi, after 60 it
+  restarts. A board stuck on a weak, unreachable mesh node (−73 dBm, no route to the
+  host) recovered to −45 dBm after this change.
+
+Measured on the ESP-32S/OV3660 target (AI-Thinker pin map, USB-serial adapter power,
+mesh Wi-Fi, ~100 ms average RTT): **7–10 fps at ~4.5 KB per QVGA frame**, stable
+for 3 minutes with no stalls or reboots, internal heap ~116 KB free. VGA (~15 KB)
+gave only 3–5 fps and visible stalls. Throughput is RTT-bound: each frame waits
+for its HTTP response. At the default 19.5 dBm TX power with a 240 MHz CPU the
+same board hit the brownout detector; use a solid 5 V supply before raising either.
+Other boards, networks and supplies will differ.
 
 The included **AI-Thinker reference pin map** is only a labeled wiring example;
 it is not silently assumed to match this target. Its usual OV2640 sensor is not
@@ -91,12 +119,12 @@ no camera-side retry queue or paid API key exists.
 - Measure minimum free **internal** heap and largest allocation block during TLS
   handshake, upload and reconnect, separately from PSRAM. Current logs report
   post-upload values only, not the handshake minimum.
-- Check one-framebuffer ownership on failures, Wi-Fi loss, server timeout,
+- Check framebuffer ownership on failures, Wi-Fi loss, server timeout,
   oversized JPEG, invalid CA/hostname, expired cert, redirect and missing time.
 - Verify reserve-counter persistence after power loss and repeated reboot, and
   server restart/replay rejection. Do not repeatedly erase NVS.
 - Soak-test at expected lighting/temperature for memory growth and flash wear;
-  measure actual capture sizes, latencies and useful snapshot cadence.
+  measure actual capture sizes, latencies and sustained fps.
 
 Official references:
 - [Espressif camera driver and memory constraints](https://github.com/espressif/esp32-camera)
@@ -106,5 +134,5 @@ Official references:
 - [Espressif mbedTLS memory FAQ](https://docs.espressif.com/projects/esp-faq/en/latest/software-framework/protocols/mbedtls.html)
 
 PSRAM is generally needed above CIF JPEG; this firmware explicitly places its
-single QVGA framebuffer in PSRAM. RGB/YUV plus Wi-Fi increases memory bandwidth
+two framebuffers in PSRAM. RGB/YUV plus Wi-Fi increases memory bandwidth
 pressure. `CONFIG_CAMERA_PSRAM_DMA` is for S2/S3, not this classic ESP32 target.

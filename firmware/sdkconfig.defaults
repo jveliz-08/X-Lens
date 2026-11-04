@@ -9,3 +9,10 @@ CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
 CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=y
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+# OV3660 SCCB NACKs hung the new i2c_master driver forever; the legacy driver times out and fails closed.
+CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY=y
+# Reboot instead of hanging silently if a task stops servicing the watchdog.
+CONFIG_ESP_TASK_WDT_PANIC=y
+# Continuous feed: a whole VGA JPEG fits one TCP send window (default 5.7 KB cost ~1 RTT per 5 KB).
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y

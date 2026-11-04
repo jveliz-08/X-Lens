@@ -6,6 +6,8 @@ camera.example.com {
         max_size 131072
     }
     reverse_proxy 127.0.0.1:8080 {
+        # Forward live MJPEG parts immediately instead of buffering them.
+        flush_interval -1
         transport http {
             dial_timeout 2s
             response_header_timeout 5s

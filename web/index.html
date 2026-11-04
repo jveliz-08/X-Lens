@@ -1,13 +1,255 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>X-Lens · Local security workspace</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
-<body><header><a class="brand" href="/">◉ X–LENS <small>LOCAL SECURITY WORKSPACE</small></a><div class="header-actions"><span id="connection" class="badge">LOCKED</span><button id="lock" hidden>Lock session</button></div></header>
-<main><section id="login" class="welcome"><div><p class="eyebrow">SMALL CAMERAS. THOUGHTFUL SECURITY.</p><h1>See what happened.<br>Understand what matters.</h1><p>Connect a tiny camera or your webcam. Review incidents.<br>Build local rules that stay under your control.</p><div class="steps"><span>01 · Connect a source</span><span>02 · Review evidence</span><span>03 · Confirm your rules</span></div></div><div class="panel login-panel"><h2>Open your workspace</h2><label for="token">Viewer token</label><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="64-character viewer token"><button id="connect" class="primary">Unlock workspace →</button><p class="muted">Use the viewer value in your private server config. Tokens stay in this tab's memory.</p><details><summary>First time here?</summary><p>Run the local setup and server, then the synthetic incident demo. No real camera or Meta account is needed for the demo.</p><code>python3 tools/setup_demo.py<br>python3 tools/demo_incident.py</code></details></div></section>
-<section id="dashboard" hidden><div class="page-heading"><div><p class="eyebrow">YOUR INFRASTRUCTURE. YOUR DECISIONS.</p><h1>Security workspace</h1></div><span class="badge">LOCAL HOST · CLOUD AI OPT-IN</span></div>
-<nav aria-label="Workspace"><button data-tab="overview" aria-selected="true">Overview</button><button data-tab="sources">Camera sources</button><button data-tab="incidents">Incidents</button><button data-tab="rules">Rules & voice</button></nav>
-<div class="metrics"><div><span>Configured sources</span><strong id="count">—</strong></div><div><span>Authentication failures</span><strong id="auth-count">—</strong></div><div><span>Replay rejections</span><strong id="replay-count">—</strong></div><div><span>Active local rules</span><strong id="rule-count">—</strong></div></div>
-<section id="view-overview" class="view"><div class="section-title"><h2>Latest snapshots</h2><button id="refresh">Refresh now</button></div><p id="security-signals" class="muted"></p><div id="cameras" class="grid"></div></section>
-<section id="view-sources" class="view" hidden><div class="section-title"><div><h2>A webcam is a camera source, too.</h2><p>Preview locally, then explicitly start snapshots. Audio is never captured by this source.</p></div></div><div class="split"><div class="panel"><label for="source-device">Configured device identity</label><select id="source-device"></select><label for="source-key">Device upload token</label><input id="source-key" type="password" autocomplete="off" placeholder="Separate device token; not the viewer token"><label for="camera-select">Camera</label><select id="camera-select"><option value="">Default webcam</option></select><div class="button-row"><button id="camera-preview" class="primary">Open camera preview</button><button id="camera-stop">Stop & release camera</button></div><p class="muted">Only this button requests camera permission. Requires localhost or HTTPS. Use a dedicated device identity for each active camera.</p><button id="upload-start" disabled>Start snapshots · every 5 s</button><p id="camera-status" role="status">Camera off. No permission requested.</p><p class="muted">JPEG · 320 × 240 · ≤128 KiB · same authenticated ingestion as ESP32. Leaving this tab, hiding the page, or locking stops capture.</p></div><div class="panel preview-panel"><video id="preview" autoplay playsinline muted aria-label="Local webcam preview"></video><div class="preview-label">LOCAL PREVIEW · UPLOAD REQUIRES START</div><p>No media leaves this browser before you start snapshots. Snapshots go to your X-Lens host; they do not automatically go to Meta.</p></div></div><div class="panel hint"><h3>Other sources</h3><p>ESP32-CAM uses the same upload API. The synthetic simulator works without a device. Source enrollment remains an operator config change, so the dashboard cannot mint credentials.</p><code>python3 tools/demo_incident.py</code></div></section>
-<section id="view-incidents" class="view" hidden><div class="section-title"><div><h2>Evidence before conclusions.</h2><p>Meta reviews are advisory. Simulated reviews are labeled. Neither can change access controls.</p></div></div><div id="incidents" class="grid"></div><div class="section-title"><h2>Local rule events</h2><span class="muted">Last 64 · reset on server restart</span></div><div id="events" class="stack"></div></section>
-<section id="view-rules" class="view" hidden><div class="section-title"><div><h2>Say it. Review it. Confirm it.</h2><p>Supported rules execute locally and can only create a panel event. No scripts, device blocking or external messages.</p></div></div><div class="split"><div class="panel"><h3>1. Describe a rule</h3><label for="rule-intent">Type a supported phrase, or dictate it</label><textarea id="rule-intent" maxlength="240" rows="3" placeholder="When webcam has 5 replays, notify me"></textarea><p class="muted">Try “When webcam is stale for 60 seconds, notify me”. This offline parser uses fixed templates, not a language model. Unsupported requests are rejected.</p><label class="check"><input id="speech-consent" type="checkbox">I understand browser speech recognition may send my audio to its vendor's service and require internet.</label><div class="button-row"><button id="voice-start">Dictate rule</button><button id="voice-stop">Stop dictation</button><button id="rule-parse" class="primary">LOCAL TEMPLATE draft</button></div><div class="panel"><strong id="rule-provider">AI provider: checking status</strong><p>Interpret the text for the device selected in the editor. Meta receives only this text, not audio or camera images. Do not include secrets. A proposal never activates a rule.</p><label for="proposal-key">Operator token for inference</label><input id="proposal-key" type="password" autocomplete="off"><label class="check"><input id="proposal-consent" type="checkbox">I approve sending this text to the configured provider; live Meta calls consume budget.</label><button id="rule-ai">Ask for an AI proposal</button><button id="proposal-cancel">Cancel proposal</button><p id="proposal-status" role="status">No provider call made.</p></div><p id="voice-status" role="status">Voice is optional. Typed input works offline.</p><details><summary>Import an AI draft instead</summary><label for="rule-json">Strict JSON draft — never activated automatically</label><textarea id="rule-json" rows="3" maxlength="1024" placeholder='{"id":"replay-review","device":"webcam","signal":"replays","threshold":5,"cooldown":60,"enabled":true,"action":"ui_event"}'></textarea><button id="rule-import">Validate imported draft</button><p class="muted">Untrusted model output must use exactly this schema. Unknown keys, code and actions are rejected.</p></details></div>
-<div class="panel"><h3>2. Edit & review</h3><div id="rule-editor"><label for="rule-id">Rule ID</label><input id="rule-id" maxlength="24" value="replay-review"><label for="rule-device">Device</label><select id="rule-device"></select><label for="rule-signal">Observed signal</label><select id="rule-signal"><option value="replays">Replay rejections</option><option value="invalid_frames">Invalid JPEGs</option><option value="auth_failures">Authentication failures (all devices)</option><option value="stale_seconds">Seconds without an accepted frame</option></select><div class="split fields"><div><label for="rule-threshold">Threshold · 1–3600</label><input id="rule-threshold" type="number" min="1" max="3600" value="5"></div><div><label for="rule-cooldown">Event cooldown · seconds</label><input id="rule-cooldown" type="number" min="10" max="86400" value="60"></div></div><label class="check"><input id="rule-enabled" type="checkbox" checked>Enabled after confirmation</label></div><button id="rule-review" class="primary">Review exact rule</button><div id="rule-confirmation" hidden><pre id="rule-summary"></pre><label for="operator-key">Operator token</label><input id="operator-key" type="password" autocomplete="off" placeholder="Rule-management credential"><label class="check"><input id="confirm-check" type="checkbox">I reviewed this exact rule and approve saving it.</label><div class="button-row"><button id="rule-save" class="primary" disabled>Confirm & save rule</button><button id="rule-cancel">Cancel draft</button></div></div><p id="rule-status" role="status">No rule will change until you explicitly confirm.</p></div></div><div class="section-title"><h2>Saved rules</h2><span class="muted">At most 16 · persisted on the server</span></div><div id="rules-list" class="stack"></div></section>
-</section><p id="status" class="global-status" role="status" aria-live="polite"></p><footer><span>X-LENS / SMALL BY DESIGN</span><span>Capture, storage & rules: local · Meta inference: opt-in cloud</span></footer></main></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>X-Lens</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>X-Lens</a>
+  <div class="header-actions">
+    <span id="connection" class="badge">LOCKED</span>
+    <button id="lock" hidden>Lock</button>
+  </div>
+</header>
+<main>
+  <section id="login" class="welcome">
+    <div>
+      <p class="eyebrow">Tiny cameras · Intelligent oversight</p>
+      <h1>A $7 camera<br>that understands.</h1>
+      <p>ESP32-CAM boards detect motion on the chip, stream on demand and record clips to your own host. Meta vision describes what happened, watches for what you describe in plain words, and answers questions about your cameras.</p>
+      <div class="steps"><span>Edge motion detection</span><span>Event clips</span><span>Watches that learn</span><span>Routines for loved ones</span><span>Ask by voice</span></div>
+    </div>
+    <div class="panel login-panel">
+      <h2>Unlock workspace</h2>
+      <label for="token">Viewer token</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="64-character viewer token">
+      <label for="login-operator">Operator token <span class="muted">· optional, enables AI and changes</span></label>
+      <input id="login-operator" type="password" autocomplete="off" spellcheck="false" placeholder="64-character operator token">
+      <button id="connect" class="primary">Unlock →</button>
+      <p class="muted">The <code class="inline">viewer=</code> value from your server config. It stays in this tab's memory only.</p>
+      <details><summary>First time here?</summary><p>Run the local setup and server, then the synthetic incident demo. No real camera or Meta account is needed for the demo.</p><code>python3 tools/setup_demo.py<br>python3 tools/demo_incident.py</code></details>
+    </div>
+  </section>
+
+  <section id="dashboard" hidden>
+    <div class="toolbar">
+      <nav aria-label="Workspace">
+        <button data-tab="overview" aria-selected="true">Live</button>
+        <button data-tab="activity">Activity</button>
+        <button data-tab="rules">Watches & rules</button>
+        <button data-tab="sources">Sources</button>
+        <button data-tab="incidents">Incidents</button>
+      </nav>
+      <div class="metrics">
+        <div><span>Sources</span><strong id="count">—</strong></div>
+        <div><span>Auth failures</span><strong id="auth-count">—</strong></div>
+        <div><span>Replays</span><strong id="replay-count">—</strong></div>
+        <div><span>Active rules</span><strong id="rule-count">—</strong></div>
+      </div>
+    </div>
+
+    <section id="view-overview" class="view">
+      <div id="alerts" class="alerts" hidden></div>
+      <div class="panel ask">
+        <div class="ask-row">
+          <span class="ask-mark" aria-hidden="true">✦</span>
+          <label for="ask-input" class="sr-only">Ask your cameras</label>
+          <input id="ask-input" maxlength="300" autocomplete="off" placeholder="Ask your cameras… “Is the door open?” · “What happened while I was out?”">
+          <label for="ask-device" class="sr-only">Camera</label>
+          <select id="ask-device"></select>
+          <button id="ask-mic" class="mic" title="Ask by voice" aria-label="Ask by voice">🎤</button>
+          <button id="ask-send" class="primary">Ask</button>
+        </div>
+        <div class="suggestions" id="ask-suggestions">
+          <button data-q="What happened in the last hour?">What happened in the last hour?</button>
+          <button data-q="Is anyone there right now?">Is anyone there right now?</button>
+          <button data-q="Summarize today's activity.">Summarize today</button>
+          <button data-q="Alert me if someone is at the door.">Alert me if someone is at the door</button>
+        </div>
+        <div id="ask-answer" class="ask-answer" role="status" hidden></div>
+      </div>
+      <div class="section-title">
+        <div><h2>Live</h2><p id="security-signals" class="muted"></p></div>
+        <div class="button-row"><label class="check inline"><input id="speak-alerts" type="checkbox">Speak alerts & answers</label><button id="notify-enable">Enable alerts</button><button id="refresh">Refresh</button></div>
+      </div>
+      <div id="cameras" class="grid live"></div>
+      <div id="idle-sources" class="idle"></div>
+    </section>
+
+    <section id="view-activity" class="view" hidden>
+      <div class="section-title">
+        <div><h2>Activity</h2><p id="activity-summary" class="muted">Motion events detected on the cameras, with clips and AI descriptions.</p></div>
+        <span id="ai-chip" class="badge">AI</span>
+      </div>
+      <div class="split care">
+        <div class="panel digest-panel"><div class="histogram-head"><strong>Today in one paragraph</strong><button id="digest-make">Summarize today</button></div><div id="digest" class="digest"><p class="muted">One AI call reads today's event log, a few keyframes and your routines, and writes the day's story with links to the clips.</p></div></div>
+        <div class="panel"><div class="histogram-head"><strong>Routines today</strong><button id="routine-edit" class="link">Edit</button></div><div id="routine-status" class="stack"></div></div>
+      </div>
+      <div class="panel histogram-panel"><div class="histogram-head"><strong>Last 24 hours</strong><span id="histogram-total" class="muted"></span></div><div id="histogram" class="histogram" role="img" aria-label="Motion events per hour over the last 24 hours"></div></div>
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <section id="view-sources" class="view" hidden>
+      <div class="section-title"><div><h2>Webcam source</h2><p class="muted">Preview locally, then explicitly start snapshots. Audio is never captured.</p></div></div>
+      <div class="split">
+        <div class="panel">
+          <label for="source-device">Configured device identity</label>
+          <select id="source-device"></select>
+          <label for="source-key">Device upload token</label>
+          <input id="source-key" type="password" autocomplete="off" placeholder="Separate device token; not the viewer token">
+          <label for="camera-select">Camera</label>
+          <select id="camera-select"><option value="">Default webcam</option></select>
+          <div class="button-row"><button id="camera-preview" class="primary">Open camera preview</button><button id="camera-stop">Stop & release camera</button></div>
+          <p class="muted">Only this button requests camera permission. Requires localhost or HTTPS. Use a dedicated device identity for each active camera.</p>
+          <button id="upload-start" disabled>Start streaming · 5 fps with motion detection</button>
+          <p id="camera-status" role="status">Camera off. No permission requested.</p>
+          <p class="muted">JPEG · 320 × 240 · ≤128 KiB · same authenticated ingestion as ESP32. Leaving this tab, hiding the page, or locking stops capture.</p>
+        </div>
+        <div class="panel preview-panel">
+          <video id="preview" autoplay playsinline muted aria-label="Local webcam preview"></video>
+          <div class="preview-label">LOCAL PREVIEW · UPLOAD REQUIRES START</div>
+          <p>No media leaves this browser before you start snapshots. Snapshots go to your X-Lens host; they do not automatically go to Meta.</p>
+        </div>
+      </div>
+      <div class="panel hint"><h3>ESP32-CAM</h3><p>Boards stream continuously through the same authenticated upload API. Enrollment is an operator config change, so the dashboard cannot mint credentials.</p><code>python3 tools/provision.py</code></div>
+    </section>
+
+    <section id="view-incidents" class="view" hidden>
+      <div class="section-title"><div><h2>Incidents</h2><p class="muted">AI reviews are advisory and labeled. They never change access controls.</p></div></div>
+      <div id="incidents" class="grid"></div>
+      <div class="section-title"><h2>Local rule events</h2><span class="muted">Last 64 · reset on server restart</span></div>
+      <div id="events" class="stack"></div>
+    </section>
+
+    <section id="view-rules" class="view" hidden>
+      <div class="section-title"><div><h2>Visual watches</h2><p class="muted">Describe what to look for in plain words. Meta vision checks it only when a camera detects motion: one call per event, never per frame. A match raises an alert; it never acts on anything.</p></div></div>
+      <div class="split">
+        <div class="panel">
+          <label for="watch-prompt">Watch for…</label>
+          <textarea id="watch-prompt" rows="2" maxlength="200" placeholder="A person leaving a package at the door"></textarea>
+          <div class="split fields">
+            <div><label for="watch-device">Camera</label><select id="watch-device"></select></div>
+            <div><label for="watch-cooldown">Alert cooldown · s</label><input id="watch-cooldown" type="number" min="30" max="86400" value="120"></div>
+          </div>
+          <label for="watch-id">Watch ID</label>
+          <input id="watch-id" maxlength="24" value="watch-1">
+          <div class="button-row"><button id="watch-save" class="primary">Save watch</button></div>
+          <p id="watch-status" role="status">Saving requires the operator token. Up to 8 watches.</p>
+          <div id="watch-list" class="stack"></div>
+        </div>
+        <div class="panel" id="ai-card">
+          <h3>Meta AI</h3>
+          <p id="ai-status" class="ai-status">Checking…</p>
+          <label for="ai-key">Meta Model API key</label>
+          <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key to enable live Meta vision">
+          <div class="button-row"><button id="ai-key-save" class="primary">Save key</button><button id="ai-key-remove">Remove key</button></div>
+          <div class="split fields">
+            <div><label for="ai-language">Event captions in</label><select id="ai-language"><option value="en">English</option><option value="es">Español</option><option value="pt">Português</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="it">Italiano</option></select></div>
+            <div><label class="check auto-check"><input id="ai-auto" type="checkbox" checked>Describe motion events automatically</label></div>
+          </div>
+          <button id="ai-config-save">Save AI settings</button>
+          <label for="ai-operator">Operator token <span class="muted">· if you did not enter it at unlock</span></label>
+          <input id="ai-operator" type="password" autocomplete="off" spellcheck="false" placeholder="Needed for keys, watches and questions">
+          <p class="muted">The key is stored on your host (mode 600) and is never sent back to a browser. Model: muse-spark-1.3 unless XLENS_META_MODEL is set. Without a key, AI runs in clearly labeled simulation.</p>
+          <p id="ai-message" role="status"></p>
+        </div>
+      </div>
+      <div class="section-title"><div><h2>Routines</h2><p class="muted">Expect activity in a time window, for example someone who lives alone getting up between 07:00 and 10:00. The first motion marks it done; no motion by the end of the window raises an alert. Checked on the host every second, no AI involved.</p></div></div>
+      <div class="split">
+        <div class="panel">
+          <label for="routine-label">Routine</label>
+          <input id="routine-label" maxlength="80" placeholder="Mom gets up and makes breakfast">
+          <div class="split fields three">
+            <div><label for="routine-device">Camera</label><select id="routine-device"></select></div>
+            <div><label for="routine-from">From</label><input id="routine-from" type="time" value="07:00"></div>
+            <div><label for="routine-to">Until</label><input id="routine-to" type="time" value="10:00"></div>
+          </div>
+          <div class="button-row"><button id="routine-save" class="primary">Save routine</button></div>
+          <p id="routine-message" role="status">Times use this browser's time zone. Requires the operator token. Up to 8 routines.</p>
+        </div>
+        <div class="panel"><div id="routine-list" class="stack"></div></div>
+      </div>
+      <div class="section-title"><div><h2>Signal rules</h2><p class="muted">Rules run locally and can only create a panel event. No scripts, device blocking or external messages.</p></div></div>
+      <div class="split">
+        <div class="panel">
+          <h3>1. Describe a rule</h3>
+          <label for="rule-intent">Type a supported phrase, or dictate it</label>
+          <textarea id="rule-intent" maxlength="240" rows="3" placeholder="When webcam has 5 replays, notify me"></textarea>
+          <p class="muted">Try “When esp32cam is stale for 60 seconds, notify me”. This offline parser uses fixed templates, not a language model.</p>
+          <label class="check"><input id="speech-consent" type="checkbox">I understand browser speech recognition may send my audio to its vendor's service and require internet.</label>
+          <div class="button-row"><button id="voice-start">Dictate rule</button><button id="voice-stop">Stop dictation</button><button id="rule-parse" class="primary">LOCAL TEMPLATE draft</button></div>
+          <div class="panel inset">
+            <strong id="rule-provider">AI provider: checking status</strong>
+            <p class="muted">Interpret the text for the device selected in the editor. Meta receives only this text, not audio or camera images. Do not include secrets. A proposal never activates a rule.</p>
+            <label for="proposal-key">Operator token for inference</label>
+            <input id="proposal-key" type="password" autocomplete="off">
+            <label class="check"><input id="proposal-consent" type="checkbox">I approve sending this text to the configured provider; live Meta calls consume budget.</label>
+            <div class="button-row"><button id="rule-ai">Ask for an AI proposal</button><button id="proposal-cancel">Cancel proposal</button></div>
+            <p id="proposal-status" role="status">No provider call made.</p>
+          </div>
+          <p id="voice-status" role="status">Voice is optional. Typed input works offline.</p>
+          <details><summary>Import an AI draft instead</summary>
+            <label for="rule-json">Strict JSON draft — never activated automatically</label>
+            <textarea id="rule-json" rows="3" maxlength="1024" placeholder='{"id":"replay-review","device":"webcam","signal":"replays","threshold":5,"cooldown":60,"enabled":true,"action":"ui_event"}'></textarea>
+            <button id="rule-import">Validate imported draft</button>
+            <p class="muted">Untrusted model output must use exactly this schema. Unknown keys, code and actions are rejected.</p>
+          </details>
+        </div>
+        <div class="panel">
+          <h3>2. Edit & review</h3>
+          <div id="rule-editor">
+            <label for="rule-id">Rule ID</label>
+            <input id="rule-id" maxlength="24" value="replay-review">
+            <label for="rule-device">Device</label>
+            <select id="rule-device"></select>
+            <label for="rule-signal">Observed signal</label>
+            <select id="rule-signal"><option value="replays">Replay rejections</option><option value="invalid_frames">Invalid JPEGs</option><option value="auth_failures">Authentication failures (all devices)</option><option value="stale_seconds">Seconds without an accepted frame</option></select>
+            <div class="split fields">
+              <div><label for="rule-threshold">Threshold · 1–3600</label><input id="rule-threshold" type="number" min="1" max="3600" value="5"></div>
+              <div><label for="rule-cooldown">Event cooldown · seconds</label><input id="rule-cooldown" type="number" min="10" max="86400" value="60"></div>
+            </div>
+            <label class="check"><input id="rule-enabled" type="checkbox" checked>Enabled after confirmation</label>
+          </div>
+          <button id="rule-review" class="primary">Review exact rule</button>
+          <div id="rule-confirmation" hidden>
+            <pre id="rule-summary"></pre>
+            <label for="operator-key">Operator token</label>
+            <input id="operator-key" type="password" autocomplete="off" placeholder="Rule-management credential">
+            <label class="check"><input id="confirm-check" type="checkbox">I reviewed this exact rule and approve saving it.</label>
+            <div class="button-row"><button id="rule-save" class="primary" disabled>Confirm & save rule</button><button id="rule-cancel">Cancel draft</button></div>
+          </div>
+          <p id="rule-status" role="status">No rule will change until you explicitly confirm.</p>
+        </div>
+      </div>
+      <div class="section-title"><h2>Saved rules</h2><span class="muted">At most 16 · persisted on the server</span></div>
+      <div id="rules-list" class="stack"></div>
+    </section>
+  </section>
+  <div id="player" class="modal" role="dialog" aria-modal="true" aria-labelledby="player-title" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="player-title">Event</h3><button id="player-close">Close</button></div>
+      <div class="stage player-stage"><img id="player-img" alt="Event clip frame"></div>
+      <div class="player-controls"><button id="player-toggle">Pause</button><input id="player-seek" type="range" min="0" max="0" value="0" aria-label="Clip position"><span id="player-time" class="muted"></span></div>
+      <p id="player-caption"></p>
+    </div>
+  </div>
+  <div id="zones" class="modal" role="dialog" aria-modal="true" aria-labelledby="zones-title" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="zones-title">Ignore zones</h3><button id="zones-close">Close</button></div>
+      <p class="muted">Click or drag over the parts of the scene the camera should ignore: trees, screens, curtains, a busy street. The camera applies this grid itself when it measures motion, so those areas no longer start events or AI calls.</p>
+      <div class="stage zone-stage"><img id="zones-img" alt="Latest frame from the camera"><div id="zones-grid" class="zone-grid"></div><div id="zones-boxes" class="zone-boxes"></div></div>
+      <div class="ask-row"><span class="ask-mark" aria-hidden="true">✦</span><label for="zones-concept" class="sr-only">Thing to ignore</label><input id="zones-concept" maxlength="60" placeholder="Let SAM 3.1 find it: tree, television, curtain…"><button id="zones-detect">Find with SAM 3.1</button></div>
+      <div class="button-row"><button id="zones-save" class="primary">Save zones</button><button id="zones-clear">Clear all</button></div>
+      <p id="zones-message" role="status"></p>
+    </div>
+  </div>
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
+  <p id="status" class="global-status" role="status" aria-live="polite"></p>
+  <footer><span>X-Lens · self-hosted</span><span>Capture, storage & rules stay local · Meta AI is opt-in</span></footer>
+</main>
+</body>
+</html>

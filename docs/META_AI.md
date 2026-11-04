@@ -1,8 +1,83 @@
 # Meta AI: image review and defensive signal review
 
-## What is implemented
+## Event vision, watches and Ask (dashboard workflow)
 
-**Incident mode is the core workflow:** one bounded model call jointly reviews
+`tools/vision.py` is a fixed adapter the server runs with no shell and no
+model-chosen arguments. It uses the same documented endpoint
+(`https://api.meta.ai/v1/chat/completions`), `developer` + `user` messages,
+inline `image_url` JPEG data URIs, `response_format` `json_schema` with
+`strict: true`, `max_completion_tokens` and `reasoning_effort: "low"`.
+
+- **event**: up to three frames of one motion event (start, peak, latest) plus the
+  camera's enabled watches in one request. Schema: `caption`, `activity` (fixed
+  enum) and, only when watches exist, `watches[]` with `id` restricted to the sent
+  IDs, `match`, `confidence` and `reason`. Only `match: true` becomes an alert.
+- **ask**: the question, the current frame (if any) and the latest 40 events as
+  text with local times. Schema: `answer`, `answerable`, `events[]`, `watch`.
+  Cited IDs the model was not shown are dropped; `watch` is only a suggestion the
+  user confirms in the UI.
+
+- **learned examples**: operators label alerts ✓ right / ✗ false alarm (or "should
+  have alerted"). Up to three labeled keyframes (≤2 per watch, newest first, never
+  the event being analyzed) follow the watch conditions in the same request, each
+  introduced as "this frame DID / did NOT match", with a standing instruction to
+  avoid repeating rejected false alarms. Few-shot in context: nothing is trained or
+  uploaded besides those JPEGs.
+- **digest**: the operator's local day: up to 120 events as text, up to four
+  keyframes (alerted events first, then highest motion) and routine outcomes.
+  Schema: `title`, `summary`, `highlights[{event, text}]`; highlights citing events
+  the model was not shown are dropped. Simulation writes local statistics only.
+
+### SAM 3.1 ignore zones (`tools/segment.py`)
+
+`POST https://api.meta.ai/v1/responses`, model `sam-3.1`, one user message with an
+`input_text` concept and an `input_image` data URL, `stream: true`,
+`metadata.mask_encoding: "one_bit"`. The adapter concatenates
+`response.output_text.delta` events, parses the documented
+`<|box;x1=..;y1=..;x2=..;y2=..;w=..;h=..|>` tokens (pixel coordinates, validated
+against `w`/`h`, ≤16 boxes) and marks every 8×6 grid cell at least 30 % covered. The
+result is a proposal drawn in the editor; the operator saves it explicitly.
+Shares the vision ledger and lock; mock mode proposes nothing.
+
+### Muse Voice Transcribe (`tools/voice.py`)
+
+The dashboard records push-to-talk audio (≤12 s) with Web Audio at 16 kHz and
+encodes mono 16-bit PCM WAV, the documented format. The host checks the RIFF
+header and sends one multipart request to `https://api.meta.ai/v1/asr/transcribe`
+(`request` part: `muse-voice-transcribe-1.0`, `audioEncoding: WAV`,
+`mode: PUSH_TO_TALK`, `languageBias` from the AI language setting; `audio` part).
+Only `transcript` is kept (≤300 chars); audio is never stored. Separate
+`voice-budget.json` ledger (200/day). Without a key the dashboard offers the
+browser's recognizer after an explicit consent prompt; answers and alerts are
+spoken by the browser's local speech synthesis.
+
+**Enabling it:** an operator pastes the key in **Watches & rules → Meta AI**
+(`POST /api/ai-key`). The server stores it as `meta.secret` next to the config
+(or `XLENS_META_KEY_FILE`), mode 600, and passes only the file path to the
+adapter. No endpoint returns it; the dashboard sees `key: true/false`. Mode is
+`meta` when the key exists, otherwise `mock`; `XLENS_RULE_MODE=meta|mock|disabled`
+overrides. Default model `muse-spark-1.3` (Meta's documented example), overridable
+with `XLENS_META_MODEL`. The same key also enables Meta rule drafting.
+
+**Cost bounds:** inference runs per motion event, never per frame: automatic
+analysis at most once per camera every 10 s (later events can be analyzed
+manually), a queue of 4 jobs, one adapter process at a time, and a private
+`vision-budget.json` ledger (300 calls per UTC day, ≥2 s apart) reserved before
+sending. Unknown outcomes consume their slot and are never retried. Simulation
+mode makes no network call, spends nothing, and labels every output SIMULATED;
+it never claims to have seen an image.
+
+**Validation:** `tests/test_vision.py` checks the exact wire shapes: Chat
+Completions (roles, image parts, strict schema rules, labeled examples, digest),
+the SAM 3.1 request and event-stream parsing with the box-to-grid mapping, and the
+ASR multipart body and WAV checks. It also covers rejection of extra keys, unknown
+activities, unknown watch IDs, tool calls, refusals, truncation and duplicate JSON
+keys, citation filtering, and runs each live path end to end against a fake
+provider (one call, fixed endpoint, budget reserved). No real Meta call was made.
+
+## Security incident review (CLI)
+
+**Incident mode:** one bounded model call jointly reviews
 the latest JPEG and sanitized device telemetry, producing visual observations,
 security advice and a correlated incident summary. A separate deterministic
 policy gate supplies evidence, and a bounded local report appears in the

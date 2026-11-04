@@ -1,4 +1,4 @@
-idf_component_register(SRCS "main.c" INCLUDE_DIRS "." REQUIRES esp32-camera esp_http_client esp_wifi esp_event esp_netif nvs_flash mbedtls lwip esp_timer)
+idf_component_register(SRCS "main.c" INCLUDE_DIRS "." REQUIRES esp32-camera esp_jpeg esp_http_client esp_wifi esp_event esp_netif nvs_flash mbedtls lwip esp_timer)
 # ESP-IDF returns early above during dependency discovery; inspect cache only in the build pass.
 set(XLENS_BOARD "" CACHE STRING "Explicit camera pin map: AI_THINKER reference or CUSTOM")
 if(XLENS_BOARD STREQUAL "AI_THINKER")
