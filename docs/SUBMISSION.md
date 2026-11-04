@@ -1,7 +1,7 @@
 # Submission kit
 
 Copy-paste material for the Cerebral Valley form and the X post. Replace the remaining
-`[brackets]` (video and X post links) before submitting.
+`[brackets]` (the X post link, once published) before submitting.
 
 ## Project name
 X-Lens
@@ -69,7 +69,7 @@ SAM 3.1 zones), routines, the dashboard and the demo recorder. Third-party compo
 
 ## Links
 - Repo: https://github.com/jveliz-08/X-Lens
-- Video (≤3 min): [YouTube/Vimeo link]; file: `docs/demo.mp4`
+- Video (3 min): https://www.youtube.com/watch?v=POObw2y0e_0 (file: `docs/demo.mp4`)
 - X post: [link]
 
 ## X post (≤280 characters)
@@ -79,7 +79,7 @@ I turned a $7 ESP32-CAM into a camera that understands 🧠📷
 • @Meta Muse Spark describes each event once, learns from my ✓/✗
 • SAM 3.1 masks the tree that keeps triggering it
 • alerts if Grandma hasn't moved by 10am
-#MetaHackathon [video]
+#MetaHackathon https://www.youtube.com/watch?v=POObw2y0e_0
 
 ## For judges who want to run it
 ```sh

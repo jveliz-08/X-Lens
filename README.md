@@ -24,6 +24,14 @@
   <a href="#safety">Safety</a>
 </p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=POObw2y0e_0">
+    <img src="https://img.youtube.com/vi/POObw2y0e_0/maxresdefault.jpg" alt="▶ Watch the X-Lens demo on YouTube (3 min)" width="85%">
+  </a>
+  <br>
+  <a href="https://www.youtube.com/watch?v=POObw2y0e_0"><b>▶️ Watch the 3-minute demo on YouTube</b></a>
+</p>
+
 ---
 
 X-Lens turns a **$7 ESP32-CAM** into a private camera that *understands* what it sees.
@@ -46,10 +54,11 @@ lives alone hasn't moved by the time they usually do.
 <td width="56%"><img src="docs/assets/walk-in.gif" alt="Someone walks in: the tile turns REC and the motion meter fills" width="100%"></td>
 <td>
 
-### ▶️ [Watch the 3-minute video](docs/demo.mp4)
+### ▶️ [Watch the 3-minute video on YouTube](https://www.youtube.com/watch?v=POObw2y0e_0)
 
 Recorded from the real dashboard by
-[`tools/record_demo.py`](tools/record_demo.py).
+[`tools/record_demo.py`](tools/record_demo.py)
+(also in the repo: [`docs/demo.mp4`](docs/demo.mp4)).
 
 1. 🚶 Someone walks in. The **board** detects it.
 2. 🎬 A clip with the seconds *before* is saved.
